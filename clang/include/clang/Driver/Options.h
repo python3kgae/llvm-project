@@ -36,6 +36,7 @@ enum ClangFlags {
   FC1Option = (1 << 15),
   FlangOnlyOption = (1 << 16),
   Ignored = (1 << 17),
+  DXCOption = (1 << 18),
 };
 
 enum ID {

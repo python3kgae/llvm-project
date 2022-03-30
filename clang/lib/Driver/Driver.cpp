@@ -20,6 +20,7 @@
 #include "ToolChains/Cuda.h"
 #include "ToolChains/Darwin.h"
 #include "ToolChains/DragonFly.h"
+#include "ToolChains/DirectX.h"
 #include "ToolChains/FreeBSD.h"
 #include "ToolChains/Fuchsia.h"
 #include "ToolChains/Gnu.h"
@@ -231,6 +232,7 @@ void Driver::setDriverMode(StringRef Value) {
                    .Case("cpp", CPPMode)
                    .Case("cl", CLMode)
                    .Case("flang", FlangMode)
+                   .Case("dxc", DXCMode)
                    .Default(None))
     Mode = *M;
   else
@@ -5726,6 +5728,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       case llvm::Triple::spirv64:
         TC = std::make_unique<toolchains::SPIRVToolChain>(*this, Target, Args);
         break;
+      case llvm::Triple::dxil:
+        TC = std::make_unique<toolchains::DirectXToolChain>(*this, Target, Args);
+        break;
       default:
         if (Target.getVendor() == llvm::Triple::Myriad)
           TC = std::make_unique<toolchains::MyriadToolChain>(*this, Target,
@@ -5895,7 +5900,11 @@ Driver::getIncludeExcludeOptionFlagMasks(bool IsClCompatMode) const {
   } else {
     ExcludedFlagsBitmask |= options::CLOption;
   }
-
+  if (IsDXCMode()) {
+    // TODO: Include DXC and Core options.
+  } else {
+    ExcludedFlagsBitmask |= options::DXCOption;
+  }
   return std::make_pair(IncludedFlagsBitmask, ExcludedFlagsBitmask);
 }
 
