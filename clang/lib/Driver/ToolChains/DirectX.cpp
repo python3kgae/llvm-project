@@ -10,6 +10,7 @@
 #include "llvm/ADT/Triple.h"
 #include "CommonArgs.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "llvm/ADT/StringSwitch.h"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -19,130 +20,83 @@ using namespace llvm::opt;
 using namespace llvm;
 
 namespace {
-std::string tryParseProfile(StringRef profile) {
+std::string tryParseProfile(StringRef Profile) {
   // [ps|vs|gs|hs|ds|cs|ms|as]_[major]_[minor]
-  Triple::EnvironmentType kind;
-  switch (profile[0]) {
-  case 'p':
-    kind = Triple::EnvironmentType::Pixel;
-    break;
-  case 'v':
-    kind = Triple::EnvironmentType::Vertex;
-    break;
-  case 'g':
-    kind = Triple::EnvironmentType::Geometry;
-    break;
-  case 'h':
-    kind = Triple::EnvironmentType::Hull;
-    break;
-  case 'd':
-    kind = Triple::EnvironmentType::Domain;
-    break;
-  case 'c':
-    kind = Triple::EnvironmentType::Compute;
-    break;
-  case 'l':
-    kind = Triple::EnvironmentType::Library;
-    break;
-  case 'm':
-    kind = Triple::EnvironmentType::Mesh;
-    break;
-  case 'a':
-    kind = Triple::EnvironmentType::Amplification;
-    break;
-  default:
-    return "";
-  }
-  unsigned Idx = 3;
-  if (kind != Triple::EnvironmentType::Library) {
-    if (profile[1] != 's' || profile[2] != '_')
-      return "";
-  } else {
-    if (profile[1] != 'i' || profile[2] != 'b' || profile[3] != '_')
-      return "";
-    Idx = 4;
-  }
-  Triple::OSType::ShaderModel;
-  unsigned Major;
-  switch (profile[Idx++]) {
-  case '4':
-    Major = 4;
-    break;
-  case '5':
-    Major = 5;
-    break;
-  case '6':
-    Major = 6;
-    break;
-  default:
-    return "";
-  }
-  if (profile[Idx++] != '_')
+  SmallVector<StringRef, 3> Parts;
+  Profile.split(Parts, "_");
+  if (Parts.size() != 3)
     return "";
 
-  static const unsigned kOfflineMinor = 0xF;
-  unsigned Minor;
-  switch (profile[Idx++]) {
-  case '0':
-    Minor = 0;
-    break;
-  case '1':
-    Minor = 1;
-    break;
-  case '2':
-    if (Major == 6) {
-      Minor = 2;
-      break;
-    } else
-      return "";
-  case '3':
-    if (Major == 6) {
-      Minor = 3;
-      break;
-    } else
-      return "";
-  case '4':
-    if (Major == 6) {
-      Minor = 4;
-      break;
-    } else
-      return "";
-  case '5':
-    if (Major == 6) {
-      Minor = 5;
-      break;
-    } else
-      "";
-  case '6':
-    if (Major == 6) {
-      Minor = 6;
-      break;
-    } else
-      return "";
-  case '7':
-    if (Major == 6) {
-      Minor = 7;
-      break;
-    } else
-      return "";
-  case 'x':
-    if (kind == Triple::EnvironmentType::Library && Major == 6) {
-      Minor = kOfflineMinor;
-      break;
-    } else
-      return "";
+  Triple::EnvironmentType Kind =
+      StringSwitch<Triple::EnvironmentType>(Parts[0])
+          .Case("ps", Triple::EnvironmentType::Pixel)
+          .Case("vs", Triple::EnvironmentType::Vertex)
+          .Case("gs", Triple::EnvironmentType::Geometry)
+          .Case("hs", Triple::EnvironmentType::Hull)
+          .Case("ds", Triple::EnvironmentType::Domain)
+          .Case("cs", Triple::EnvironmentType::Compute)
+          .Case("lib", Triple::EnvironmentType::Library)
+          .Case("ms", Triple::EnvironmentType::Mesh)
+          .Case("as", Triple::EnvironmentType::Amplification)
+          .Default(Triple::EnvironmentType::UnknownEnvironment);
+  if (Kind == Triple::EnvironmentType::UnknownEnvironment)
+    return "";
+
+  unsigned Major = StringSwitch<unsigned>(Parts[1])
+                       .Case("4", 4)
+                       .Case("5", 5)
+                       .Case("6", 6)
+                       .Default(0);
+  if (Major == 0)
+    return "";
+
+  const unsigned OfflineMinor = 0xF;
+  const unsigned InvalidMinor = -1;
+  unsigned Minor = StringSwitch<unsigned>(Parts[2])
+                       .Case("0", 0)
+                       .Case("1", 1)
+                       .Case("2", 2)
+                       .Case("3", 3)
+                       .Case("4", 4)
+                       .Case("5", 5)
+                       .Case("6", 6)
+                       .Case("7", 7)
+                       .Case("x", OfflineMinor)
+                       .Default(InvalidMinor);
+  if (Minor == InvalidMinor)
+    return "";
+
+  if (Major != 6 && Minor > 1)
+    return "";
+
+  if (Minor == OfflineMinor && Kind != Triple::EnvironmentType::Library)
+    return "";
+
+  switch (Kind) {
   default:
-    return "";
+    break;
+  case Triple::EnvironmentType::Library: {
+    if (Major < 6)
+      return "";
+    if (Major == 6 && Minor < 3)
+      return "";
+  } break;
+  case Triple::EnvironmentType::Amplification:
+  case Triple::EnvironmentType::Mesh: {
+    if (Major < 6)
+      return "";
+    if (Major == 6 && Minor < 5)
+      return "";
+  } break;
   }
-  if (profile.size() != Idx && profile[Idx++] != 0)
-    return "";
+
   // dxil-unknown-shadermodel-hull
-  llvm::Triple T(Twine("dxil"), Twine("unknown"),
-                 Twine("shadermodel")
-                     .concat(Twine(Major))
-                     .concat(".")
-                     .concat(Twine(Minor)),
-                 Triple::getEnvironmentTypeName(kind));
+  llvm::Triple T;
+  T.setArch(Triple::ArchType::dxil);
+  T.setOSName(Triple::getOSTypeName(Triple::OSType::ShaderModel).str() +
+              VersionTuple(Major, Minor).getAsString());
+  T.setEnvironment(Kind);
+  ;
   return T.getTriple();
 }
 
@@ -157,14 +111,14 @@ std::string
 DirectXToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
                                               types::ID InputType) const {
   if (Arg *A = Args.getLastArg(options::OPT_target_profile)) {
-    StringRef profile = A->getValue();
-    std::string triple = tryParseProfile(profile);
-    if (triple == "") {
-      getDriver().Diag(diag::err_drv_invalid_directx_shader_module) << profile;
-      triple = ToolChain::ComputeEffectiveClangTriple(Args, InputType);
+    StringRef Profile = A->getValue();
+    std::string Triple = tryParseProfile(Profile);
+    if (Triple == "") {
+      getDriver().Diag(diag::err_drv_invalid_directx_shader_module) << Profile;
+      Triple = ToolChain::ComputeEffectiveClangTriple(Args, InputType);
     }
     A->claim();
-    return triple;
+    return Triple;
   } else {
     return ToolChain::ComputeEffectiveClangTriple(Args, InputType);
   }
