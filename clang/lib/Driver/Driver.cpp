@@ -19,8 +19,8 @@
 #include "ToolChains/CrossWindows.h"
 #include "ToolChains/Cuda.h"
 #include "ToolChains/Darwin.h"
-#include "ToolChains/DragonFly.h"
 #include "ToolChains/DirectX.h"
+#include "ToolChains/DragonFly.h"
 #include "ToolChains/FreeBSD.h"
 #include "ToolChains/Fuchsia.h"
 #include "ToolChains/Gnu.h"
@@ -5901,7 +5901,9 @@ Driver::getIncludeExcludeOptionFlagMasks(bool IsClCompatMode) const {
     ExcludedFlagsBitmask |= options::CLOption;
   }
   if (IsDXCMode()) {
-    // TODO: Include DXC and Core options.
+    // Include DXC and Core options.
+    IncludedFlagsBitmask |= options::DXCOption;
+    IncludedFlagsBitmask |= options::CoreOption;
   } else {
     ExcludedFlagsBitmask |= options::DXCOption;
   }

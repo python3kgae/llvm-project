@@ -163,30 +163,9 @@ DirectXToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
       getDriver().Diag(diag::err_drv_invalid_directx_shader_module) << profile;
       triple = ToolChain::ComputeEffectiveClangTriple(Args, InputType);
     }
+    A->claim();
     return triple;
   } else {
     return ToolChain::ComputeEffectiveClangTriple(Args, InputType);
   }
-}
-
-llvm::opt::DerivedArgList *
-DirectXToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
-                                StringRef BoundArch,
-                                Action::OffloadKind OFK) const {
-  DerivedArgList *DAL = new DerivedArgList(Args.getBaseArgs());
-  const OptTable &Opts = getDriver().getOpts();
-
-  for (Arg *A : Args) {
-    if (A->getOption().matches(options::OPT_T)) {
-      // Convert OPT_T to OPT_target_profile for dxc.
-      StringRef ProfileStr = A->getValue();
-      DAL->AddJoinedArg(A, Opts.getOption(options::OPT_target_profile),
-                        ProfileStr);
-    } else {
-      // HIP Toolchain translates input args by itself.
-      DAL->append(A);
-    }
-  }
-
-  return DAL;
 }
