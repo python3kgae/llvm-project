@@ -48,7 +48,6 @@ add_clang_library(clangDriver
   ToolChains/CrossWindows.cpp
   ToolChains/Cuda.cpp
   ToolChains/Darwin.cpp
-  ToolChains/DirectX.cpp
   ToolChains/DragonFly.cpp
   ToolChains/Flang.cpp
   ToolChains/FreeBSD.cpp
@@ -59,6 +58,7 @@ add_clang_library(clangDriver
   ToolChains/HIPAMD.cpp
   ToolChains/HIPSPV.cpp
   ToolChains/Hexagon.cpp
+  ToolChains/HLSL.cpp
   ToolChains/Hurd.cpp
   ToolChains/Linux.cpp
   ToolChains/MipsLinux.cpp

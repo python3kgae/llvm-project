@@ -1,4 +1,4 @@
-//===--- DirectX.h - DirectX ToolChain Implementations ----------*- C++ -*-===//
+//===--- HLSL.h - HLSL ToolChain Implementations ----------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,10 +15,10 @@ namespace driver {
 
 namespace toolchains {
 
-class LLVM_LIBRARY_VISIBILITY DirectXToolChain : public ToolChain {
+class LLVM_LIBRARY_VISIBILITY HLSLToolChain : public ToolChain {
 public:
-  DirectXToolChain(const Driver &D, const llvm::Triple &Triple,
-                   const llvm::opt::ArgList &Args);
+  HLSLToolChain(const Driver &D, const llvm::Triple &Triple,
+                const llvm::opt::ArgList &Args);
   bool isPICDefault() const override { return false; }
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
     return false;

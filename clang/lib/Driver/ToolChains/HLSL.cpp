@@ -1,4 +1,4 @@
-//===--- DirectX.cpp - DirectX ToolChain Implementations ----------*- C++ -*-===//
+//===--- HLSL.cpp - HLSL ToolChain Implementations --------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "DirectX.h"
-#include "llvm/ADT/Triple.h"
+#include "HLSL.h"
 #include "CommonArgs.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/Triple.h"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -20,6 +20,88 @@ using namespace llvm::opt;
 using namespace llvm;
 
 namespace {
+
+const unsigned OfflineLibMinor = 0xF;
+const unsigned MaxShaderModel6Minor = 7;
+bool isLegalShaderModel(Triple &T) {
+  if (T.getOS() != Triple::OSType::ShaderModel)
+    return false;
+
+  auto Kind = T.getEnvironment();
+
+  switch (Kind) {
+  default:
+    return false;
+  case Triple::EnvironmentType::Vertex:
+  case Triple::EnvironmentType::Hull:
+  case Triple::EnvironmentType::Domain:
+  case Triple::EnvironmentType::Geometry:
+  case Triple::EnvironmentType::Pixel:
+  case Triple::EnvironmentType::Compute:
+  case Triple::EnvironmentType::Library:
+  case Triple::EnvironmentType::Amplification:
+  case Triple::EnvironmentType::Mesh:
+    break;
+  }
+
+  auto Version = T.getOSVersion();
+  if (Version.getBuild())
+    return false;
+  if (Version.getSubminor())
+    return false;
+
+  auto OMinor = Version.getMinor();
+  if (!OMinor.hasValue())
+    return false;
+
+  unsigned Minor = OMinor.getValue();
+  unsigned Major = Version.getMajor();
+
+  switch (Major) {
+  case 4:
+  case 5: {
+    switch (Minor) {
+    case 0:
+    case 1:
+      switch (Kind) {
+      case Triple::EnvironmentType::Vertex:
+        break;
+      default:
+        return false;
+      }
+      break;
+    default:
+      return false;
+    }
+  } break;
+  case 6: {
+    switch (Kind) {
+    default:
+      break;
+    case Triple::EnvironmentType::Library: {
+      if (Minor < 3)
+        return false;
+    } break;
+    case Triple::EnvironmentType::Amplification:
+    case Triple::EnvironmentType::Mesh: {
+      if (Minor < 5)
+        return false;
+    } break;
+    }
+    if (Minor == OfflineLibMinor) {
+      if (Kind != Triple::EnvironmentType::Library)
+        return false;
+    } else if (Minor > MaxShaderModel6Minor) {
+      return false;
+    }
+  } break;
+  default:
+    return false;
+  }
+
+  return true;
+}
+
 std::string tryParseProfile(StringRef Profile) {
   // [ps|vs|gs|hs|ds|cs|ms|as]_[major]_[minor]
   SmallVector<StringRef, 3> Parts;
@@ -50,7 +132,6 @@ std::string tryParseProfile(StringRef Profile) {
   if (Major == 0)
     return "";
 
-  const unsigned OfflineMinor = 0xF;
   const unsigned InvalidMinor = -1;
   unsigned Minor = StringSwitch<unsigned>(Parts[2])
                        .Case("0", 0)
@@ -61,34 +142,10 @@ std::string tryParseProfile(StringRef Profile) {
                        .Case("5", 5)
                        .Case("6", 6)
                        .Case("7", 7)
-                       .Case("x", OfflineMinor)
+                       .Case("x", OfflineLibMinor)
                        .Default(InvalidMinor);
   if (Minor == InvalidMinor)
     return "";
-
-  if (Major != 6 && Minor > 1)
-    return "";
-
-  if (Minor == OfflineMinor && Kind != Triple::EnvironmentType::Library)
-    return "";
-
-  switch (Kind) {
-  default:
-    break;
-  case Triple::EnvironmentType::Library: {
-    if (Major < 6)
-      return "";
-    if (Major == 6 && Minor < 3)
-      return "";
-  } break;
-  case Triple::EnvironmentType::Amplification:
-  case Triple::EnvironmentType::Mesh: {
-    if (Major < 6)
-      return "";
-    if (Major == 6 && Minor < 5)
-      return "";
-  } break;
-  }
 
   // dxil-unknown-shadermodel-hull
   llvm::Triple T;
@@ -96,20 +153,22 @@ std::string tryParseProfile(StringRef Profile) {
   T.setOSName(Triple::getOSTypeName(Triple::OSType::ShaderModel).str() +
               VersionTuple(Major, Minor).getAsString());
   T.setEnvironment(Kind);
-  ;
-  return T.getTriple();
+  if (isLegalShaderModel(T))
+    return T.getTriple();
+  else
+    return "";
 }
 
 } // namespace
 
 /// DirectX Toolchain
-DirectXToolChain::DirectXToolChain(const Driver &D, const llvm::Triple &Triple,
-                                   const ArgList &Args)
+HLSLToolChain::HLSLToolChain(const Driver &D, const llvm::Triple &Triple,
+                             const ArgList &Args)
     : ToolChain(D, Triple, Args) {}
 
 std::string
-DirectXToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
-                                              types::ID InputType) const {
+HLSLToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
+                                           types::ID InputType) const {
   if (Arg *A = Args.getLastArg(options::OPT_target_profile)) {
     StringRef Profile = A->getValue();
     std::string Triple = tryParseProfile(Profile);
