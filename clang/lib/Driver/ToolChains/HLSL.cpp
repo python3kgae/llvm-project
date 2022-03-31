@@ -23,8 +23,24 @@ namespace {
 
 const unsigned OfflineLibMinor = 0xF;
 const unsigned MaxShaderModel6Minor = 7;
+
+bool isLegalVersion(VersionTuple Version, unsigned Major, unsigned MinMinor,
+                    unsigned MaxMinor) {
+  VersionTuple Min(Major, MinMinor);
+  VersionTuple Max(Major, MaxMinor);
+  return Min <= Version && Version <= Max;
+}
+
 bool isLegalShaderModel(Triple &T) {
   if (T.getOS() != Triple::OSType::ShaderModel)
+    return false;
+
+  auto Version = T.getOSVersion();
+  if (Version.getBuild())
+    return false;
+  if (Version.getSubminor())
+    return false;
+  if (!Version.getMinor())
     return false;
 
   auto Kind = T.getEnvironment();
@@ -37,69 +53,29 @@ bool isLegalShaderModel(Triple &T) {
   case Triple::EnvironmentType::Domain:
   case Triple::EnvironmentType::Geometry:
   case Triple::EnvironmentType::Pixel:
-  case Triple::EnvironmentType::Compute:
-  case Triple::EnvironmentType::Library:
+  case Triple::EnvironmentType::Compute: {
+    if (isLegalVersion(Version, 4, 0, 1))
+      return true;
+    if (isLegalVersion(Version, 5, 0, 1))
+      return true;
+
+    if (isLegalVersion(Version, 6, 0, MaxShaderModel6Minor))
+      return true;
+  } break;
+  case Triple::EnvironmentType::Library: {
+    VersionTuple SM6x(6, OfflineLibMinor);
+    if (Version == SM6x)
+      return true;
+    if (isLegalVersion(Version, 6, 3, MaxShaderModel6Minor))
+      return true;
+  } break;
   case Triple::EnvironmentType::Amplification:
-  case Triple::EnvironmentType::Mesh:
-    break;
-  }
-
-  auto Version = T.getOSVersion();
-  if (Version.getBuild())
-    return false;
-  if (Version.getSubminor())
-    return false;
-
-  auto OMinor = Version.getMinor();
-  if (!OMinor.hasValue())
-    return false;
-
-  unsigned Minor = OMinor.getValue();
-  unsigned Major = Version.getMajor();
-
-  switch (Major) {
-  case 4:
-  case 5: {
-    switch (Minor) {
-    case 0:
-    case 1:
-      switch (Kind) {
-      case Triple::EnvironmentType::Vertex:
-        break;
-      default:
-        return false;
-      }
-      break;
-    default:
-      return false;
-    }
+  case Triple::EnvironmentType::Mesh: {
+    if (isLegalVersion(Version, 6, 5, MaxShaderModel6Minor))
+      return true;
   } break;
-  case 6: {
-    switch (Kind) {
-    default:
-      break;
-    case Triple::EnvironmentType::Library: {
-      if (Minor < 3)
-        return false;
-    } break;
-    case Triple::EnvironmentType::Amplification:
-    case Triple::EnvironmentType::Mesh: {
-      if (Minor < 5)
-        return false;
-    } break;
-    }
-    if (Minor == OfflineLibMinor) {
-      if (Kind != Triple::EnvironmentType::Library)
-        return false;
-    } else if (Minor > MaxShaderModel6Minor) {
-      return false;
-    }
-  } break;
-  default:
-    return false;
   }
-
-  return true;
+  return false;
 }
 
 std::string tryParseProfile(StringRef Profile) {
