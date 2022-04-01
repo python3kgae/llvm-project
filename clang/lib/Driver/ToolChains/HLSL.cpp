@@ -100,27 +100,14 @@ std::string tryParseProfile(StringRef Profile) {
   if (Kind == Triple::EnvironmentType::UnknownEnvironment)
     return "";
 
-  unsigned Major = StringSwitch<unsigned>(Parts[1])
-                       .Case("4", 4)
-                       .Case("5", 5)
-                       .Case("6", 6)
-                       .Default(0);
-  if (Major == 0)
+  unsigned long long Major = 0;
+  if (llvm::getAsUnsignedInteger(Parts[1], 0, Major))
     return "";
 
-  const unsigned InvalidMinor = -1;
-  unsigned Minor = StringSwitch<unsigned>(Parts[2])
-                       .Case("0", 0)
-                       .Case("1", 1)
-                       .Case("2", 2)
-                       .Case("3", 3)
-                       .Case("4", 4)
-                       .Case("5", 5)
-                       .Case("6", 6)
-                       .Case("7", 7)
-                       .Case("x", OfflineLibMinor)
-                       .Default(InvalidMinor);
-  if (Minor == InvalidMinor)
+  unsigned long long Minor = 0;
+  if (Parts[2] == "x")
+    Minor = OfflineLibMinor;
+  else if (llvm::getAsUnsignedInteger(Parts[2], 0, Minor))
     return "";
 
   // dxil-unknown-shadermodel-hull
