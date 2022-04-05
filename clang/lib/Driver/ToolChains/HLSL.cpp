@@ -127,8 +127,6 @@ std::string tryParseProfile(StringRef Profile) {
 }
 
 bool isLegalValidatorVersion(StringRef ValVersionStr, const Driver &D) {
-  auto VerPair = ValVersionStr.split(".");
-  llvm::APInt APMajor, APMinor;
   VersionTuple Version;
   if (Version.tryParse(ValVersionStr) || Version.getBuild() ||
       Version.getSubminor() || !Version.getMinor()) {
