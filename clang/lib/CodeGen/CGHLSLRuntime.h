@@ -12,7 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#ifndef LLVM_CLANG_LIB_CODEGEN_CGHLSLRUNTIME_H
+#define LLVM_CLANG_LIB_CODEGEN_CGHLSLRUNTIME_H
 
 namespace clang {
 
@@ -25,11 +26,13 @@ protected:
   CodeGenModule &CGM;
 
 public:
-  CGHLSLRuntime(CodeGenModule &CGM);
-  virtual ~CGHLSLRuntime();
-  void finishCodeGen();
+  CGHLSLRuntime(CodeGenModule &CGM) : CGM(CGM) {}
+  virtual ~CGHLSLRuntime() {}
 
+  void finishCodeGen();
 };
 
-}
-}
+} // namespace CodeGen
+} // namespace clang
+
+#endif

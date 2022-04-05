@@ -126,25 +126,25 @@ std::string tryParseProfile(StringRef Profile) {
     return "";
 }
 
-bool isLegalValidatorVersion(StringRef ValVersionStr, std::string &ErrorMsg) {
+bool isLegalValidatorVersion(StringRef ValVersionStr, const Driver &D) {
   auto VerPair = ValVersionStr.split(".");
   llvm::APInt APMajor, APMinor;
-
-  if (VerPair.first.getAsInteger(0, APMajor) ||
-      VerPair.second.getAsInteger(0, APMinor)) {
-    ErrorMsg =
-        "Format of validator version is \"<major>.<minor>\" (ex:\"1.4\").";
+  VersionTuple Version;
+  if (Version.tryParse(ValVersionStr) || Version.getBuild() ||
+      Version.getSubminor() || !Version.getMinor()) {
+    D.Diag(diag::err_drv_invalid_format_dxil_validator_version)
+        << ValVersionStr;
     return false;
   }
-  uint64_t Major = APMajor.getLimitedValue();
-  uint64_t Minor = APMinor.getLimitedValue();
+
+  uint64_t Major = Version.getMajor();
+  uint64_t Minor = Version.getMinor().getValue();
   if (Major > MaxDXILMajor || (Major == MaxDXILMajor && Minor > MaxDXILMinor)) {
-    ErrorMsg = "Validator version must be less than or equal to current "
-               "internal version.";
+    D.Diag(diag::err_drv_invalid_range_dxil_validator_version) << ValVersionStr;
     return false;
   }
   if (Major == 0 && Minor != 0) {
-    ErrorMsg = "If validator major version is 0, minor version must also be 0.";
+    D.Diag(diag::err_drv_invalid_empty_dxil_validator_version) << ValVersionStr;
     return false;
   }
   return true;
@@ -185,10 +185,7 @@ HLSLToolChain::TranslateArgs(const DerivedArgList &Args, StringRef BoundArch,
     if (A->getOption().getID() == options::OPT_dxil_validator_version) {
       StringRef ValVerStr = A->getValue();
       std::string ErrorMsg;
-      if (!isLegalValidatorVersion(ValVerStr, ErrorMsg)) {
-        getDriver().Diag(diag::err_drv_invalid_dxil_validator_version)
-            << ValVerStr << ErrorMsg;
-
+      if (!isLegalValidatorVersion(ValVerStr, getDriver())) {
         continue;
       }
     }

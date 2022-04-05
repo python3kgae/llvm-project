@@ -44,10 +44,6 @@ void addDxilValVersion(StringRef ValVersionStr, llvm::Module &M) {
 }
 } // namespace
 
-CGHLSLRuntime::CGHLSLRuntime(CodeGenModule &CGM) : CGM(CGM) {}
-
-CGHLSLRuntime::~CGHLSLRuntime() {}
-
 void CGHLSLRuntime::finishCodeGen() {
   auto &CGOpts = CGM.getCodeGenOpts();
   llvm::Module &M = CGM.getModule();
