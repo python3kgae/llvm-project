@@ -20,6 +20,12 @@ void initializeDXILPrepareModulePass(PassRegistry &);
 
 /// Pass to convert modules into DXIL-compatable modules
 ModulePass *createDXILPrepareModulePass();
+
+/// Initializer for DxilEmitMetadata.
+void initializeDxilEmitMetadataPass(PassRegistry &);
+
+/// Pass to emit metadata for DXIL.
+ModulePass *createDxilEmitMetadataPass();
 } // namespace llvm
 
 #endif // LLVM_LIB_TARGET_DIRECTX_DIRECTX_H
