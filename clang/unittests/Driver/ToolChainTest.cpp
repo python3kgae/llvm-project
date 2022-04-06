@@ -367,4 +367,112 @@ TEST(GetDriverMode, PrefersLastDriverMode) {
   EXPECT_EQ(getDriverMode(Args[0], llvm::makeArrayRef(Args).slice(1)), "bar");
 }
 
+TEST(DxcModeTest, ValidatorVersionValidation) {
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+  struct SimpleDiagnosticConsumer : public DiagnosticConsumer {
+    void HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
+                          const Diagnostic &Info) override {
+      if (DiagLevel == DiagnosticsEngine::Level::Error) {
+        Errors.emplace_back();
+        Info.FormatDiagnostic(Errors.back());
+        Errors.back().append({0});
+      } else {
+        Msgs.emplace_back();
+        Info.FormatDiagnostic(Msgs.back());
+        Msgs.back().append({0});
+      }
+    }
+    void clear() override {
+      Msgs.clear();
+      Errors.clear();
+      DiagnosticConsumer::clear();
+    }
+    std::vector<SmallString<32>> Msgs;
+    std::vector<SmallString<32>> Errors;
+  };
+
+  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+      new llvm::vfs::InMemoryFileSystem);
+
+  InMemoryFileSystem->addFile("foo.hlsl", 0,
+                              llvm::MemoryBuffer::getMemBuffer("\n"));
+
+  auto *DiagConsumer = new SimpleDiagnosticConsumer;
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+  DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagConsumer);
+  Driver TheDriver("/bin/clang", "", Diags, "", InMemoryFileSystem);
+  std::unique_ptr<Compilation> C(
+      TheDriver.BuildCompilation({"clang", "--driver-mode=dxc", "foo.hlsl"}));
+  EXPECT_TRUE(C);
+  EXPECT_TRUE(!C->containsError());
+
+  auto &TC = C->getDefaultToolChain();
+  bool ContainsError = false;
+  auto Args = TheDriver.ParseArgStrings({"-validator-version", "1.1"}, false,
+                                        ContainsError);
+  EXPECT_FALSE(ContainsError);
+  auto DAL = std::make_unique<llvm::opt::DerivedArgList>(Args);
+  for (auto *A : Args) {
+    DAL->append(A);
+  }
+  auto *TranslatedArgs =
+      TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
+  EXPECT_NE(TranslatedArgs, nullptr);
+  if (TranslatedArgs) {
+    auto *A = TranslatedArgs->getLastArg(
+        clang::driver::options::OPT_dxil_validator_version);
+    EXPECT_NE(A, nullptr);
+    if (A) {
+      EXPECT_STREQ(A->getValue(), "1.1");
+    }
+  }
+  EXPECT_EQ(Diags.getNumErrors(), 0);
+
+  // Invalid tests.
+  Args = TheDriver.ParseArgStrings({"-validator-version", "0.1"}, false,
+                                   ContainsError);
+  EXPECT_FALSE(ContainsError);
+  DAL = std::make_unique<llvm::opt::DerivedArgList>(Args);
+  for (auto *A : Args) {
+    DAL->append(A);
+  }
+  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
+  EXPECT_EQ(Diags.getNumErrors(), 1);
+  EXPECT_STREQ(DiagConsumer->Errors.back().data(),
+               "invalid validator version : 0.1\nIf validator major version is "
+               "0, minor version must also be 0.");
+  Diags.Clear();
+  DiagConsumer->clear();
+
+  Args = TheDriver.ParseArgStrings({"-validator-version", "2.1"}, false,
+                                   ContainsError);
+  EXPECT_FALSE(ContainsError);
+  DAL = std::make_unique<llvm::opt::DerivedArgList>(Args);
+  for (auto *A : Args) {
+    DAL->append(A);
+  }
+  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
+  EXPECT_EQ(Diags.getNumErrors(), 2);
+  EXPECT_STREQ(DiagConsumer->Errors.back().data(),
+               "invalid validator version : 2.1\nValidator version must be "
+               "less than or equal to current internal version.");
+  Diags.Clear();
+  DiagConsumer->clear();
+
+  Args = TheDriver.ParseArgStrings({"-validator-version", "1"}, false,
+                                   ContainsError);
+  EXPECT_FALSE(ContainsError);
+  DAL = std::make_unique<llvm::opt::DerivedArgList>(Args);
+  for (auto *A : Args) {
+    DAL->append(A);
+  }
+  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
+  EXPECT_EQ(Diags.getNumErrors(), 3);
+  EXPECT_STREQ(DiagConsumer->Errors.back().data(),
+               "invalid validator version : 1\nFormat of validator version is "
+               "\"<major>.<minor>\" (ex:\"1.4\").");
+  Diags.Clear();
+  DiagConsumer->clear();
+}
+
 } // end anonymous namespace.

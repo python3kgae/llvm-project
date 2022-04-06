@@ -190,6 +190,9 @@ public:
   /// debug info.
   std::string DIBugsReportFilePath;
 
+  /// The validator version for dxil.
+  std::string DxilValidatorVersion;
+
   /// The floating-point denormal mode to use.
   llvm::DenormalMode FPDenormalMode = llvm::DenormalMode::getIEEE();
 

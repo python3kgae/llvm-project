@@ -6653,6 +6653,7 @@ def _SLASH_ZW : CLJoined<"ZW">;
 def dxc_Group : OptionGroup<"<clang-dxc options>">, Flags<[DXCOption]>,
   HelpText<"dxc compatibility options">;
 
+
 class DXCJoinedOrSeparate<string name> : Option<["/", "-"], name,
   KIND_JOINED_OR_SEPARATE>, Group<dxc_Group>, Flags<[DXCOption, NoXarchOption]>;
 
@@ -6663,6 +6664,11 @@ def dxc_help : Option<["/", "-", "--"], "help", KIND_JOINED>,
 
 def Fo : DXCJoinedOrSeparate<"Fo">, Alias<o>,
   HelpText<"Output object file.">;
+
+def dxil_validator_version : Option<["/", "-"], "validator-version", KIND_SEPARATE>,
+  Group<dxc_Group>, Flags<[DXCOption, NoXarchOption, CC1Option, HelpHidden]>,
+  HelpText<"Override validator version for module.  Format: <major.minor> ;Default: DXIL.dll version or current internal version.">,
+  MarshallingInfoString<CodeGenOpts<"DxilValidatorVersion">>;
 
 def target_profile : DXCJoinedOrSeparate<"T">, MetaVarName<"<profile>">,
   HelpText<"Set target profile.">,
