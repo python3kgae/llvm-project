@@ -26,15 +26,15 @@ namespace {
 void addDxilValVersion(StringRef ValVersionStr, llvm::Module &M) {
   // The validation of ValVersionStr is done at HLSLToolChain::TranslateArgs.
   // Assume ValVersionStr is legal here.
-  auto VerPair = ValVersionStr.split(".");
-  llvm::APInt APMajor, APMinor;
-
-  if (VerPair.first.getAsInteger(0, APMajor) ||
-      VerPair.second.getAsInteger(0, APMinor)) {
+  VersionTuple Version;
+  if (Version.tryParse(ValVersionStr) || Version.getBuild() ||
+      Version.getSubminor() || !Version.getMinor()) {
     return;
   }
-  uint64_t Major = APMajor.getLimitedValue();
-  uint64_t Minor = APMinor.getLimitedValue();
+
+  uint64_t Major = Version.getMajor();
+  uint64_t Minor = Version.getMinor().getValue();
+
   auto &Ctx = M.getContext();
   IRBuilder<> B(M.getContext());
   MDNode *Val = MDNode::get(Ctx, {ConstantAsMetadata::get(B.getInt32(Major)),
