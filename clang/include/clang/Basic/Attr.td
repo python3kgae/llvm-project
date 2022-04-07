@@ -3952,3 +3952,18 @@ def HLSLNumThreads: InheritableAttr {
   let LangOpts = [HLSL];
   let Documentation = [NumThreadsDocs];
 }
+
+def HLSLShader : InheritableAttr {
+  let Spellings = [Microsoft<"shader">];
+  let Subjects = SubjectList<[HLSLEntry]>;
+  let LangOpts = [HLSL];
+  let Args = [EnumArgument<"Stage", "EnvironmentType",
+                           ["pixel", "vertex", "geometry", "hull", "domain", "compute",
+                            "library", "raygeneration", "intersection", "anyhit",
+                            "closestHit", "miss", "callable", "mesh", "amplification"],
+                           ["Pixel", "Vertex", "Geometry", "Hull", "Domain", "Compute",
+                            "Library", "RayGeneration", "Intersection", "AnyHit",
+                            "ClosestHit", "Miss", "Callable", "Mesh", "Amplification"]
+                           >];
+  let Documentation = [Undocumented];
+}
