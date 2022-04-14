@@ -29,12 +29,23 @@ static const OptTable::Info InfoTable[] = {
 #undef OPTION
 };
 
+// 2 options with different mutually exclusive flags will not happen at same
+// time.
+static const unsigned MutuallyExclusiveFlags[] = {
+    clang::driver::options::ClangFlags::CC1Option,
+    clang::driver::options::ClangFlags::CLOption,
+    clang::driver::options::ClangFlags::CoreOption,
+    clang::driver::options::ClangFlags::DXCOption,
+    clang::driver::options::ClangFlags::FlangOnlyOption |
+        clang::driver::options::ClangFlags::FlangOption,
+};
+
 namespace {
 
 class DriverOptTable : public OptTable {
 public:
   DriverOptTable()
-    : OptTable(InfoTable) {}
+      : OptTable(InfoTable, /*IgnoreCase*/ false, MutuallyExclusiveFlags) {}
 };
 
 }

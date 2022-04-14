@@ -63,7 +63,9 @@ static int StrCmpOptionName(const char *A, const char *B) {
   return strcmp(A, B);
 }
 
-static inline bool operator<(const OptTable::Info &A, const OptTable::Info &B) {
+static inline bool
+OptInfoCmpLessThan(const OptTable::Info &A, const OptTable::Info &B,
+                   ArrayRef<unsigned> MutuallyExclusiveFlags) {
   if (&A == &B)
     return false;
 
@@ -75,6 +77,23 @@ static inline bool operator<(const OptTable::Info &A, const OptTable::Info &B) {
                           *APre != nullptr && *BPre != nullptr; ++APre, ++BPre){
     if (int N = StrCmpOptionName(*APre, *BPre))
       return N < 0;
+  }
+
+  if (!MutuallyExclusiveFlags.empty()) {
+    // For Infos with different MutuallyExclusiveFlag, it is OK to not in order,
+    // they'll not active at same time.
+    unsigned MutuallyExclusiveFlagsA = 0;
+    unsigned MutuallyExclusiveFlagsB = 0;
+    for (auto Flag : MutuallyExclusiveFlags) {
+      if (A.Flags & Flag)
+        MutuallyExclusiveFlagsA |= Flag;
+      if (B.Flags & Flag)
+        MutuallyExclusiveFlagsB |= Flag;
+    }
+
+    if (MutuallyExclusiveFlagsA != 0 && MutuallyExclusiveFlagsB != 0 &&
+        (MutuallyExclusiveFlagsA & MutuallyExclusiveFlagsB) == 0)
+      return true;
   }
 
   // Names are the same, check that classes are in order; exactly one
@@ -95,7 +114,8 @@ static inline bool operator<(const OptTable::Info &I, const char *Name) {
 
 OptSpecifier::OptSpecifier(const Option *Opt) : ID(Opt->getID()) {}
 
-OptTable::OptTable(ArrayRef<Info> OptionInfos, bool IgnoreCase)
+OptTable::OptTable(ArrayRef<Info> OptionInfos, bool IgnoreCase,
+                   ArrayRef<unsigned> MutuallyExclusiveFlags)
     : OptionInfos(OptionInfos), IgnoreCase(IgnoreCase) {
   // Explicitly zero initialize the error to work around a bug in array
   // value-initialization on MinGW with gcc 4.3.5.
@@ -128,7 +148,7 @@ OptTable::OptTable(ArrayRef<Info> OptionInfos, bool IgnoreCase)
 
   // Check that options are in order.
   for (unsigned i = FirstSearchableIndex + 1, e = getNumOptions(); i != e; ++i){
-    if (!(getInfo(i) < getInfo(i + 1))) {
+    if (!OptInfoCmpLessThan(getInfo(i), getInfo(i + 1), MutuallyExclusiveFlags)) {
       getOption(i).dump();
       getOption(i + 1).dump();
       llvm_unreachable("Options are not in order!");

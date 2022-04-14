@@ -87,7 +87,8 @@ private:
                                           unsigned &Index) const;
 
 protected:
-  OptTable(ArrayRef<Info> OptionInfos, bool IgnoreCase = false);
+  OptTable(ArrayRef<Info> OptionInfos, bool IgnoreCase = false,
+           ArrayRef<unsigned> MutuallyExclusiveFlags = {});
 
 public:
   ~OptTable();
