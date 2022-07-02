@@ -26,11 +26,14 @@ def FlattenedThreadIdInGroupClass : dxil_class<"FlattenedThreadIdInGroup">;
 def ThreadIdInGroupClass : dxil_class<"ThreadIdInGroup">;
 def ThreadIdClass : dxil_class<"ThreadId">;
 def GroupIdClass : dxil_class<"GroupId">;
+def BufferLoadClass : dxil_class<"BufferLoad">;
+def BufferStoreClass : dxil_class<"BufferStore">;
+def CreateHandleClass : dxil_class<"CreateHandle">;
 
 def binary_uint : dxil_category<"Binary uint">;
 def unary_float : dxil_category<"Unary float">;
 def ComputeID : dxil_category<"Compute/Mesh/Amplification shader">;
-
+def Resources : dxil_category<"Resources">;
 
 // The parameter description for a DXIL instruction
 class dxil_param<int _pos, string type, string _name, string _doc,
@@ -142,3 +145,39 @@ def FlattenedThreadIdInGroup :dxil_op< "FlattenedThreadIdInGroup", 96,  Flattene
     dxil_param<1,  "i32",  "opcode",  "DXIL opcode">
   ]>,
   dxil_map_intrinsic<int_dxil_flattened_thread_id_in_group>;
+
+def BufferLoad : dxil_op< "BufferLoad", 68, BufferLoadClass,Resources, "reads from a TypedBuffer", "half;float;i16;i32;", "ro",
+  [
+    dxil_param<0, "dx.types.ResRet", "", "the loaded value">,
+    dxil_param<1, "i32",  "opcode",  "DXIL opcode">,
+    dxil_param<2, "dx.types.Handle", "srv", "handle of TypedBuffer SRV to sample">,
+    dxil_param<3, "i32", "index", "element index">,
+    dxil_param<4, "i32", "wot", "coordinate">
+  ],
+  ["tex_load"]>;
+
+def BufferStore : dxil_op< "BufferStore", 69, BufferStoreClass, Resources, "writes to a RWTypedBuffer", "half;float;i16;i32;", "",
+  [
+    dxil_param<0, "void", "", "">,
+    dxil_param<1, "i32",  "opcode",  "DXIL opcode">,
+    dxil_param<2, "dx.types.Handle", "uav", "handle of UAV to store to">,
+    dxil_param<3, "i32", "coord0", "coordinate in elements">,
+    dxil_param<4, "i32", "coord1", "coordinate (unused?)">,
+    dxil_param<5, "$o", "value0", "value">,
+    dxil_param<6, "$o", "value1", "value">,
+    dxil_param<7, "$o", "value2", "value">,
+    dxil_param<8, "$o", "value3", "value">,
+    dxil_param<9, "i8", "mask", "written value mask">
+  ],
+  ["tex_store"]>;
+
+def CreateHandle : dxil_op< "CreateHandle", 57, CreateHandleClass, Resources, "creates the handle to a resource",
+  "void;", "ro",
+  [
+    dxil_param<0, "dx.types.Handle", "", "the handle to the resource">,
+    dxil_param<1, "i32",  "opcode",  "DXIL opcode">,
+    dxil_param<2, "i8", "resourceClass", "the class of resource to create (SRV, UAV, CBuffer, Sampler)", 1>, // maps to DxilResourceBase::Class
+    dxil_param<3, "i32", "rangeId", "range identifier for resource", 1>,
+    dxil_param<4, "i32", "index", "zero-based index into range">,
+    dxil_param<5, "i1", "nonUniformIndex", "non-uniform resource index", 1>
+  ]>;

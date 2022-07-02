@@ -27,25 +27,33 @@ struct DXILShaderModel {
   int Major;
   int Minor;
 };
+
+enum class ParameterKind : uint8_t {
+  INVALID = 0,
+  VOID,
+  HALF,
+  FLOAT,
+  DOUBLE,
+  I1,
+  I8,
+  I16,
+  I32,
+  I64,
+  OVERLOAD,
+  CBUFFER_RET,
+  RESOURCE_RET,
+  DXIL_HANDLE,
+};
+
 struct DXILParam {
   int Pos;        // position in parameter list
-  StringRef Type; // llvm type name, $o for overload, $r for resource
-                  // type, $cb for legacy cbuffer, $u4 for u4 struct
+  ParameterKind Kind;
   StringRef Name; // short, unique name
   StringRef Doc;  // the documentation description of this parameter
   bool IsConst;   // whether this argument requires a constant value in the IR
   StringRef EnumName; // the name of the enum type if applicable
   int MaxValue;       // the maximum value for this parameter if applicable
-  DXILParam(const Record *R) {
-    Name = R->getValueAsString("name");
-    Pos = R->getValueAsInt("pos");
-    Type = R->getValueAsString("llvm_type");
-    if (R->getValue("doc"))
-      Doc = R->getValueAsString("doc");
-    IsConst = R->getValueAsBit("is_const");
-    EnumName = R->getValueAsString("enum_name");
-    MaxValue = R->getValueAsInt("max_value");
-  }
+  DXILParam(const Record *R);
 };
 
 struct DXILOperationData {
@@ -74,6 +82,8 @@ struct DXILOperationData {
   DXILShaderModel ShaderModel;           // minimum shader model required
   DXILShaderModel ShaderModelTranslated; // minimum shader model required with
                                          // translation by linker
+  int OverloadParamIndex; // parameter index which control the overload.
+                          // When < 0, should be only 1 overload type.
   SmallVector<StringRef, 4> counters;    // counters for this inst.
   DXILOperationData(const Record *R) {
     Name = R->getValueAsString("name");
@@ -93,15 +103,82 @@ struct DXILOperationData {
     Doc = R->getValueAsString("doc");
 
     ListInit *ParamList = R->getValueAsListInit("ops");
-    for (unsigned i = 0; i < ParamList->size(); ++i) {
-      Record *Param = ParamList->getElementAsRecord(i);
+    OverloadParamIndex = -1;
+    for (unsigned I = 0; I < ParamList->size(); ++I) {
+      Record *Param = ParamList->getElementAsRecord(I);
       Params.emplace_back(DXILParam(Param));
+      auto &CurParam = Params.back();
+      if (CurParam.Kind >= ParameterKind::OVERLOAD)
+        OverloadParamIndex = I;
     }
     OverloadTypes = R->getValueAsString("oload_types");
     FnAttr = R->getValueAsString("fn_attr");
   }
 };
 } // end anonymous namespace
+
+static ParameterKind parameterTypeNameToKind(StringRef Name) {
+  return StringSwitch<ParameterKind>(Name)
+      .Case("void", ParameterKind::VOID)
+      .Case("half", ParameterKind::HALF)
+      .Case("float", ParameterKind::FLOAT)
+      .Case("double", ParameterKind::DOUBLE)
+      .Case("i1", ParameterKind::I1)
+      .Case("i8", ParameterKind::I8)
+      .Case("i16", ParameterKind::I16)
+      .Case("i32", ParameterKind::I32)
+      .Case("i64", ParameterKind::I64)
+      .Case("$o", ParameterKind::OVERLOAD)
+      .Case("dx.types.Handle", ParameterKind::DXIL_HANDLE)
+      .Case("dx.types.CBufRet", ParameterKind::CBUFFER_RET)
+      .Case("dx.types.ResRet", ParameterKind::RESOURCE_RET)
+      .Default(ParameterKind::INVALID);
+}
+
+DXILParam::DXILParam(const Record *R) {
+  Name = R->getValueAsString("name");
+  Pos = R->getValueAsInt("pos");
+  Kind = parameterTypeNameToKind(R->getValueAsString("llvm_type"));
+  if (R->getValue("doc"))
+    Doc = R->getValueAsString("doc");
+  IsConst = R->getValueAsBit("is_const");
+  EnumName = R->getValueAsString("enum_name");
+  MaxValue = R->getValueAsInt("max_value");
+
+}
+
+static std::string parameterKindToString(ParameterKind Kind) {
+  switch (Kind) {
+  case ParameterKind::INVALID:
+    return "INVALID";
+  case ParameterKind::VOID:
+    return "VOID";
+  case ParameterKind::HALF:
+    return "HALF";
+  case ParameterKind::FLOAT:
+    return "FLOAT";
+  case ParameterKind::DOUBLE:
+    return "DOUBLE";
+  case ParameterKind::I1:
+    return "I1";
+  case ParameterKind::I8:
+    return "I8";
+  case ParameterKind::I16:
+    return "I16";
+  case ParameterKind::I32:
+    return "I32";
+  case ParameterKind::I64:
+    return "I64";
+  case ParameterKind::OVERLOAD:
+    return "OVERLOAD";
+  case ParameterKind::CBUFFER_RET:
+    return "CBUFFER_RET";
+  case ParameterKind::RESOURCE_RET:
+    return "RESOURCE_RET";
+  case ParameterKind::DXIL_HANDLE:
+    return "DXIL_HANDLE";
+  }
+}
 
 static void emitDXILOpEnum(DXILOperationData &DXILOp, raw_ostream &OS) {
   // Name = ID, // Doc
@@ -274,7 +351,9 @@ static void emitDXILOperationTable(std::vector<DXILOperationData> &DXILOps,
   // Collect Names.
   SequenceToOffsetTable<std::string> OpClassStrings;
   SequenceToOffsetTable<std::string> OpStrings;
+  SequenceToOffsetTable<SmallVector<ParameterKind>> Parameters;
 
+  StringMap<SmallVector<ParameterKind>> ParameterMap;
   StringSet<> ClassSet;
   for (auto &DXILOp : DXILOps) {
     OpStrings.add(DXILOp.DXILOp.str());
@@ -283,16 +362,23 @@ static void emitDXILOperationTable(std::vector<DXILOperationData> &DXILOps,
       continue;
     ClassSet.insert(DXILOp.DXILClass);
     OpClassStrings.add(getDXILOpClassName(DXILOp.DXILClass));
+    SmallVector<ParameterKind> ParamKindVec;
+    for (auto &Param : DXILOp.Params) {
+      ParamKindVec.emplace_back(Param.Kind);
+    }
+    ParameterMap[DXILOp.DXILClass] = ParamKindVec;
+    Parameters.add(ParamKindVec);
   }
 
   // Layout names.
   OpStrings.layout();
   OpClassStrings.layout();
+  Parameters.layout();
 
   // Emit the DXIL operation table.
   //{DXIL::OpCode::Sin, OpCodeNameIndex, OpCodeClass::Unary,
   // OpCodeClassNameIndex,
-  // OverloadKind::FLOAT | OverloadKind::HALF, Attribute::AttrKind::ReadNone},
+  // OverloadKind::FLOAT | OverloadKind::HALF, Attribute::AttrKind::ReadNone, 0, 3, ParameterTableOffset},
   OS << "static const OpCodeProperty *getOpCodeProperty(DXIL::OpCode DXILOp) "
         "{\n";
 
@@ -303,7 +389,10 @@ static void emitDXILOperationTable(std::vector<DXILOperationData> &DXILOps,
        << ", OpCodeClass::" << DXILOp.DXILClass << ", "
        << OpClassStrings.get(getDXILOpClassName(DXILOp.DXILClass)) << ", "
        << getDXILOperationOverload(DXILOp.OverloadTypes) << ", "
-       << emitDXILOperationFnAttr(DXILOp.FnAttr) << " },\n";
+       << emitDXILOperationFnAttr(DXILOp.FnAttr) << ", "
+       << DXILOp.OverloadParamIndex << ", "
+       << DXILOp.Params.size() << ", "
+       << Parameters.get(ParameterMap[DXILOp.DXILClass]) << " },\n";
   }
   OS << "  };\n";
 
@@ -340,6 +429,20 @@ static void emitDXILOperationTable(std::vector<DXILOperationData> &DXILOps,
 
   OS << "  unsigned Index = Prop.OpCodeClassNameOffset;\n";
   OS << "  return DXILOpCodeClassNameTable + Index;\n";
+  OS << "}\n ";
+
+  OS << "static const ParameterKind *getOpCodeParameterKind(const OpCodeProperty &Prop) "
+        "{\n\n";
+  OS << "  static const ParameterKind DXILOpParameterKindTable[] = {\n";
+  Parameters.emit(
+      OS,
+      [](raw_ostream &ParamOS, ParameterKind Kind) {
+        ParamOS << "ParameterKind::" << parameterKindToString(Kind);
+      },
+      "ParameterKind::INVALID");
+  OS << "  };\n\n";
+  OS << "  unsigned Index = Prop.ParameterTableOffset;\n";
+  OS << "  return DXILOpParameterKindTable + Index;\n";
   OS << "}\n ";
 }
 
