@@ -250,9 +250,51 @@ TemplateParameterListBuilder BuiltinTypeDeclBuilder::addTemplateArgumentList() {
 
 HLSLExternalSemaSource::~HLSLExternalSemaSource() {}
 
+static NamedDecl *findDecl(ASTContext &AST, Sema &S, StringRef Name,
+                           Sema::LookupNameKind Kind) {
+  IdentifierInfo &II = AST.Idents.get(Name, tok::TokenKind::identifier);
+  DeclarationNameInfo NameInfo{DeclarationName{&II}, SourceLocation()};
+  LookupResult R(S, NameInfo, Kind);
+  S.LookupName(R, S.getCurScope());
+  NamedDecl *D = nullptr;
+  if (!R.isAmbiguous() && !R.empty())
+    D = R.getRepresentativeDecl();
+  return D;
+}
+
 void HLSLExternalSemaSource::InitializeSema(Sema &S) {
   SemaPtr = &S;
   ASTContext &AST = SemaPtr->getASTContext();
+
+  if (ExternalSema) {
+    NamespaceDecl *ExternlHLSL = llvm::dyn_cast_if_present<NamespaceDecl>(
+        findDecl(AST, S, "hlsl", Sema::LookupNameKind::LookupNamespaceName));
+    // Try to initailize from ExternalSema.
+    if (ExternlHLSL) {
+      auto *Resource = llvm::dyn_cast_if_present<CXXRecordDecl>(findDecl(
+          AST, S, "Resource", Sema::LookupNameKind::LookupOrdinaryName));
+
+      auto *RWBuffer = llvm::dyn_cast_if_present<ClassTemplateDecl>(
+          findDecl(AST, S, "RWBuffer", Sema::LookupNameKind::LookupAnyName));
+
+      // Find all things from ExternalSema, use them and return.
+      if (Resource && RWBuffer) {
+        HLSLNamespace = ExternlHLSL;
+        ResourceDecl = Resource;
+        CXXRecordDecl *Decl = RWBuffer->getTemplatedDecl();
+        if (!Decl->hasDefinition()) {
+          // Mark ExternalLexicalStorage so complete type will be called for
+          // ExternalAST path.
+          Decl->setHasExternalLexicalStorage();
+          Completions.insert(std::make_pair(
+              Decl, std::bind(&HLSLExternalSemaSource::completeBufferType, this,
+                              std::placeholders::_1)));
+        }
+        return;
+      }
+    }
+  }
+
   IdentifierInfo &HLSL = AST.Idents.get("hlsl", tok::TokenKind::identifier);
   HLSLNamespace =
       NamespaceDecl::Create(AST, AST.getTranslationUnitDecl(), false,

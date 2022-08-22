@@ -1018,9 +1018,16 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
 
   // Setup HLSL External Sema Source
   if (CI.getLangOpts().HLSL && CI.hasASTContext()) {
-    IntrusiveRefCntPtr<ExternalASTSource> HLSLSema(
-        new HLSLExternalSemaSource());
-    CI.getASTContext().setExternalSource(HLSLSema);
+    if (auto *SemaSource = dyn_cast_if_present<ExternalSemaSource>(
+            CI.getASTContext().getExternalSource())) {
+      IntrusiveRefCntPtr<ExternalSemaSource> HLSLSema(
+          new ChainedHLSLExternalSemaSource(SemaSource));
+      CI.getASTContext().setExternalSource(HLSLSema);
+    } else {
+      IntrusiveRefCntPtr<ExternalSemaSource> HLSLSema(
+          new HLSLExternalSemaSource());
+      CI.getASTContext().setExternalSource(HLSLSema);
+    }
   }
 
   FailureCleanup.release();

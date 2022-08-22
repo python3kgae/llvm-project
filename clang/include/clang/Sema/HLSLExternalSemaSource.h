@@ -15,6 +15,7 @@
 #include "llvm/ADT/DenseMap.h"
 
 #include "clang/Sema/ExternalSemaSource.h"
+#include "clang/Sema/MultiplexExternalSemaSource.h"
 
 namespace clang {
 class NamespaceDecl;
@@ -24,6 +25,7 @@ class HLSLExternalSemaSource : public ExternalSemaSource {
   Sema *SemaPtr = nullptr;
   NamespaceDecl *HLSLNamespace;
   CXXRecordDecl *ResourceDecl;
+  ExternalSemaSource *ExternalSema = nullptr;
 
   using CompletionFunction = std::function<void(CXXRecordDecl *)>;
   llvm::DenseMap<CXXRecordDecl *, CompletionFunction> Completions;
@@ -48,6 +50,31 @@ public:
   using ExternalASTSource::CompleteType;
   /// Complete an incomplete HLSL builtin type
   void CompleteType(TagDecl *Tag) override;
+  void SetExternalSema(ExternalSemaSource *ExtSema) { ExternalSema = ExtSema; }
+};
+
+/// Members of ChainedHLSLExternalSemaSource, factored out so we can initialize
+/// them before we initialize the ExternalSemaSource base class.
+struct ChainedHLSLExternalSemaSourceMembers {
+  ChainedHLSLExternalSemaSourceMembers(ExternalSemaSource *ExtSema)
+      : ExternalSema(ExtSema) {
+    HLSLSema.SetExternalSema(ExtSema);
+  }
+  HLSLExternalSemaSource HLSLSema;
+  IntrusiveRefCntPtr<ExternalSemaSource> ExternalSema;
+};
+
+class ChainedHLSLExternalSemaSource
+    : private ChainedHLSLExternalSemaSourceMembers,
+      public MultiplexExternalSemaSource {
+public:
+  ChainedHLSLExternalSemaSource(ExternalSemaSource *ExtSema)
+      : ChainedHLSLExternalSemaSourceMembers(ExtSema),
+        // NOTE: HLSLSema after ExternalSema so HLSLSema initialize after
+        // ExternalSema.
+        // When initialize HLSLSema, reuse hlsl decls if already in
+        //  ExternalSema.
+        MultiplexExternalSemaSource(*ExternalSema.get(), HLSLSema) {}
 };
 
 } // namespace clang
