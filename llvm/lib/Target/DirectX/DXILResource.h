@@ -23,6 +23,8 @@
 namespace llvm {
 class Module;
 class GlobalVariable;
+class MDTuple;
+class MDOperand;
 
 namespace dxil {
 class CBufferDataLayout;
@@ -36,6 +38,7 @@ protected:
   uint32_t LowerBound;
   uint32_t RangeSize;
   ResourceBase(uint32_t I, hlsl::FrontendResource R);
+  ResourceBase(const MDTuple *ResMD);
 
   void write(LLVMContext &Ctx, MutableArrayRef<Metadata *> Entries) const;
 
@@ -89,6 +92,7 @@ public:
     };
 
     MDNode *write(LLVMContext &Ctx) const;
+    void loadExtProps(const MDTuple *ExtTuple);
   };
 };
 
@@ -103,6 +107,7 @@ class UAVResource : public ResourceBase {
 
 public:
   UAVResource(uint32_t I, hlsl::FrontendResource R);
+  UAVResource(const MDTuple *ResMD);
 
   MDNode *write() const;
   void print(raw_ostream &O) const;
@@ -112,6 +117,8 @@ class ConstantBuffer : public ResourceBase {
   uint32_t CBufferSizeInBytes = 0; // Cbuffer used size in bytes.
 public:
   ConstantBuffer(uint32_t I, hlsl::FrontendResource R);
+  ConstantBuffer(const MDTuple *ResMD);
+
   void setSize(CBufferDataLayout &DL);
   MDNode *write() const;
   void print(raw_ostream &O) const;
@@ -125,6 +132,7 @@ template <typename T> class ResourceTable {
 public:
   ResourceTable(StringRef Name) : MDName(Name) {}
   void collect(Module &M);
+  void collectFromDXILMetadata(const MDOperand &MDO);
   MDNode *write(Module &M) const;
   void print(raw_ostream &O) const;
 };
@@ -139,6 +147,7 @@ class Resources {
 
 public:
   void collect(Module &M);
+  void collectFromDXILMetadata(Module &M);
   void write(Module &M) const;
   void print(raw_ostream &O) const;
   LLVM_DUMP_METHOD void dump() const;

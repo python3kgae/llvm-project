@@ -40,8 +40,11 @@ void initializeDXILTranslateMetadataPass(PassRegistry &);
 /// Pass to emit metadata for DXIL.
 ModulePass *createDXILTranslateMetadataPass();
 
-/// Initializer for DXILTranslateMetadata.
+/// Initializer for DXILResourceWrapper.
 void initializeDXILResourceWrapperPass(PassRegistry &);
+
+/// Initializer for DXILMetadataResourceWrapper.
+void initializeDXILMetadataResourceWrapperPass(PassRegistry &);
 
 /// Pass to pretty print DXIL metadata.
 ModulePass *createDXILPrettyPrinterPass(raw_ostream &OS);

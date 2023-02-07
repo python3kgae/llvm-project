@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "DirectXTargetMachine.h"
+#include "DXILMetadataResourceAnalysis.h"
 #include "DXILResourceAnalysis.h"
 #include "DXILShaderFlags.h"
 #include "DXILWriter/DXILWriterPass.h"
@@ -107,6 +108,10 @@ void DirectXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
           PM.addPass(DXILResourcePrinterPass(dbgs()));
           return true;
         }
+        if (PassName == "print-dxil-resource-from-dxil-metadata") {
+          PM.addPass(DXILMetadataResourcePrinterPass(dbgs()));
+          return true;
+        }
         if (PassName == "print-dx-shader-flags") {
           PM.addPass(dxil::ShaderFlagsAnalysisPrinter(dbgs()));
           return true;
@@ -116,6 +121,7 @@ void DirectXTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
   PB.registerAnalysisRegistrationCallback([](ModuleAnalysisManager &MAM) {
     MAM.registerPass([&] { return DXILResourceAnalysis(); });
+    MAM.registerPass([&] { return DXILMetadataResourceAnalysis(); });
     MAM.registerPass([&] { return dxil::ShaderFlagsAnalysis(); });
   });
 }

@@ -34,6 +34,21 @@ template <typename T> void ResourceTable<T>::collect(Module &M) {
   }
 }
 
+template <typename T>
+void ResourceTable<T>::collectFromDXILMetadata(const MDOperand &MDO) {
+  const MDTuple *Tuple = dyn_cast_or_null<MDTuple>(MDO.get());
+  if (!Tuple)
+    return;
+
+  for (unsigned i = 0; i < Tuple->getNumOperands(); i++) {
+    const MDTuple *ResMD =
+        dyn_cast_or_null<MDTuple>(Tuple->getOperand(i).get());
+    assert(ResMD != nullptr && "");
+    assert(ResMD->getNumOperands() >= 6 && "");
+    Data.emplace_back(T(ResMD));
+  }
+}
+
 template <> void ResourceTable<ConstantBuffer>::collect(Module &M) {
   NamedMDNode *Entry = M.getNamedMetadata(MDName);
   if (!Entry || Entry->getNumOperands() == 0)
@@ -56,11 +71,40 @@ void Resources::collect(Module &M) {
   CBuffers.collect(M);
 }
 
+void Resources::collectFromDXILMetadata(Module &M) {
+  NamedMDNode *ResNamedMD = M.getNamedMetadata("dx.resources");
+  if (!ResNamedMD)
+    return;
+  MDNode *ResTab = ResNamedMD->getOperand(0);
+  if (ResTab->getNumOperands() != 4)
+    return;
+
+  UAVs.collectFromDXILMetadata(
+      ResTab->getOperand(static_cast<int>(hlsl::ResourceClass::UAV)));
+  CBuffers.collectFromDXILMetadata(
+      ResTab->getOperand(static_cast<int>(hlsl::ResourceClass::CBuffer)));
+}
+
 ResourceBase::ResourceBase(uint32_t I, FrontendResource R)
     : ID(I), GV(R.getGlobalVariable()), Name(""), Space(R.getSpace()),
       LowerBound(R.getResourceIndex()), RangeSize(1) {
   if (auto *ArrTy = dyn_cast<ArrayType>(GV->getValueType()))
     RangeSize = ArrTy->getNumElements();
+}
+
+ResourceBase::ResourceBase(const MDTuple *ResMD) {
+  ID =
+      mdconst::extract<ConstantInt>(ResMD->getOperand(0))->getZExtValue();
+  Constant *GlobalSymbol = mdconst::extract<Constant>(
+      ResMD->getOperand(1));
+  GV = cast<GlobalVariable>(GlobalSymbol);
+  Name = dyn_cast<MDString>(ResMD->getOperand(2).get())->getString();
+  Space =
+      mdconst::extract<ConstantInt>(ResMD->getOperand(3))->getZExtValue();
+  LowerBound =
+      mdconst::extract<ConstantInt>(ResMD->getOperand(4))->getZExtValue();
+  RangeSize =
+      mdconst::extract<ConstantInt>(ResMD->getOperand(5))->getZExtValue();
 }
 
 StringRef ResourceBase::getComponentTypeName(ComponentType CompType) {
@@ -237,6 +281,19 @@ UAVResource::UAVResource(uint32_t I, FrontendResource R)
   parseSourceType(R.getSourceType());
 }
 
+UAVResource::UAVResource(const MDTuple *ResMD) : ResourceBase(ResMD) {
+  // UAV-specific fields.
+  Shape = static_cast<ResourceBase::Kinds>(
+      mdconst::extract<ConstantInt>(ResMD->getOperand(6))->getZExtValue());
+  GloballyCoherent =
+      mdconst::extract<ConstantInt>(ResMD->getOperand(7))->getZExtValue();
+  HasCounter =
+      mdconst::extract<ConstantInt>(ResMD->getOperand(8))->getZExtValue();
+  IsROV = mdconst::extract<ConstantInt>(ResMD->getOperand(9))->getZExtValue();
+  if (const MDTuple *ExtTuple = dyn_cast_or_null<MDTuple>(ResMD->getOperand(10).get()))
+    ExtProps.loadExtProps(ExtTuple);
+}
+
 void UAVResource::print(raw_ostream &OS) const {
   OS << "; " << left_justify(Name, 31);
 
@@ -300,6 +357,11 @@ void UAVResource::parseSourceType(StringRef S) {
 ConstantBuffer::ConstantBuffer(uint32_t I, hlsl::FrontendResource R)
     : ResourceBase(I, R) {}
 
+ConstantBuffer::ConstantBuffer(const MDTuple *ResMD) : ResourceBase(ResMD) {
+  CBufferSizeInBytes =
+      mdconst::extract<ConstantInt>(ResMD->getOperand(6))->getZExtValue();
+}
+
 void ConstantBuffer::setSize(CBufferDataLayout &DL) {
   CBufferSizeInBytes = DL.getTypeAllocSizeInBytes(GV->getValueType());
 }
@@ -321,6 +383,23 @@ template <typename T> void ResourceTable<T>::print(raw_ostream &OS) const {
     Res.print(OS);
 }
 
+void ResourceBase::ExtendedProperties::loadExtProps(const MDTuple *ExtTuple) {
+  for (unsigned i = 0; i < ExtTuple->getNumOperands(); i += 2) {
+    Tags ExtTag = static_cast<Tags>(mdconst::extract<ConstantInt>(ExtTuple->getOperand(0))->getZExtValue());
+    const MDOperand &MDO = ExtTuple->getOperand(i + 1);
+    switch (ExtTag) {
+      case Tags::TypedBufferElementType:
+        ElementType = static_cast<ComponentType>(mdconst::extract<ConstantInt>(MDO)->getZExtValue());
+        break;
+      case Tags::StructuredBufferElementStride:
+      case Tags::SamplerFeedbackKind:
+      case Tags::Atomic64Use:
+        // FIXME: support all ext props.
+        assert(0 && "not supported ext props");
+        break;
+    }
+  }
+}
 MDNode *ResourceBase::ExtendedProperties::write(LLVMContext &Ctx) const {
   IRBuilder<> B(Ctx);
   SmallVector<Metadata *> Entries;
