@@ -11,6 +11,7 @@
 /// Language (DXIL).
 //===----------------------------------------------------------------------===//
 
+#include "DXILResourceAnalysis.h"
 #include "DirectX.h"
 #include "DirectXIRPasses/PointerTypeAnalysis.h"
 #include "llvm/ADT/STLExtras.h"
@@ -174,6 +175,10 @@ public:
   }
 
   DXILPrepareModule() : ModulePass(ID) {}
+  
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addPreserved<DXILResourceWrapper>();
+  }
 
   static char ID; // Pass identification.
 };
