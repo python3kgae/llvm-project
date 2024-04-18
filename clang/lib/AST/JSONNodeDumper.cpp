@@ -600,6 +600,13 @@ void JSONNodeDumper::VisitTLSModelAttr(const TLSModelAttr *TA) {
   JOS.attribute("tls_model", TA->getModel());
 }
 
+void JSONNodeDumper::VisitHLSLEntryRootSignatureAttr(
+    const HLSLEntryRootSignatureAttr *RSA) {
+  JOS.attribute("rootSignature", RSA->getInputString());
+  JOS.attribute("rootSignatureDecl",
+                createBareDeclRef(RSA->getRootSignatureObject()));
+}
+
 void JSONNodeDumper::VisitTypedefType(const TypedefType *TT) {
   JOS.attribute("decl", createBareDeclRef(TT->getDecl()));
   if (!TT->typeMatchesDecl())
@@ -1014,6 +1021,15 @@ void JSONNodeDumper::VisitCXXRecordDecl(const CXXRecordDecl *RD) {
 void JSONNodeDumper::VisitHLSLBufferDecl(const HLSLBufferDecl *D) {
   VisitNamedDecl(D);
   JOS.attribute("bufferKind", D->isCBuffer() ? "cbuffer" : "tbuffer");
+}
+
+void JSONNodeDumper::VisitHLSLRootSignatureDecl(
+    const HLSLRootSignatureDecl *D) {
+  if (D->getRootSigKind() !=
+      HLSLRootSignatureDecl::RootSigKind::AttributeRootSignature) {
+    VisitNamedDecl(D);
+  }
+  JOS.attribute("rootSig", printRootSignature(D->getRootSignature()));
 }
 
 void JSONNodeDumper::VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *D) {

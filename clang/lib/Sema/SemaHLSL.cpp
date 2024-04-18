@@ -59,6 +59,36 @@ HLSLNumThreadsAttr *SemaHLSL::mergeNumThreadsAttr(Decl *D,
       HLSLNumThreadsAttr(getASTContext(), AL, X, Y, Z);
 }
 
+HLSLEntryRootSignatureAttr *
+SemaHLSL::mergeRootSignatureAttr(Decl *D, const AttributeCommonInfo &AL,
+                                 llvm::StringRef OrigStr,
+                                 const HLSLRootSignatureDecl *OrigRS) {
+  if (auto *RS = D->getAttr<HLSLEntryRootSignatureAttr>()) {
+    if (OrigStr != RS->getInputString()) {
+      Diag(RS->getLocation(), diag::err_hlsl_attribute_param_mismatch) << AL;
+      Diag(AL.getLoc(), diag::note_conflicting_attribute);
+    }
+    return nullptr;
+  }
+
+  FunctionDecl *FD = D->getAsFunction();
+
+  DeclContext *DC = FD->getParent();
+
+  ASTContext &Context = getASTContext();
+
+  // Create a record decl for the root signature.
+  IdentifierInfo *II = &Context.Idents.get(FD->getName().str() + ".RS");
+
+  HLSLRootSignatureDecl *RSDecl = HLSLRootSignatureDecl::Create(
+      Context, DC, SourceLocation(), II, SourceLocation(),
+      OrigRS->getRootSignature(),
+      HLSLRootSignatureDecl::RootSigKind::AttributeRootSignature);
+
+  return ::new (Context)
+      HLSLEntryRootSignatureAttr(Context, AL, OrigStr, RSDecl);
+}
+
 HLSLShaderAttr *
 SemaHLSL::mergeShaderAttr(Decl *D, const AttributeCommonInfo &AL,
                           HLSLShaderAttr::ShaderType ShaderType) {

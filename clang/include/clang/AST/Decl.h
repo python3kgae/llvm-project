@@ -40,6 +40,7 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/Frontend/HLSL/HLSLRootSignature.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/TrailingObjects.h"
@@ -4956,6 +4957,49 @@ public:
   static HLSLBufferDecl *castFromDeclContext(const DeclContext *DC) {
     return static_cast<HLSLBufferDecl *>(const_cast<DeclContext *>(DC));
   }
+
+  friend class ASTDeclReader;
+  friend class ASTDeclWriter;
+};
+
+/// HLSLRootSignatureDecl - Represent a root signature declaration.
+class HLSLRootSignatureDecl final : public NamedDecl {
+public:
+  enum class RootSigKind {
+    AttributeRootSignature,
+    LocalRootSignature,
+    GlobalRootSignature,
+  };
+
+private:
+  /// KwLoc - The location of the root signature keyword.
+  SourceLocation KwLoc;
+
+  RootSigKind RSKind;
+
+  llvm::hlsl::ParsedRootSignature RootSig;
+
+  HLSLRootSignatureDecl(DeclContext *DC, SourceLocation KwLoc,
+                        IdentifierInfo *ID, SourceLocation IDLoc,
+                        const llvm::hlsl::ParsedRootSignature &RS,
+                        RootSigKind Kind);
+
+public:
+  SourceLocation getKeywordLoc() const LLVM_READONLY { return KwLoc; }
+  RootSigKind getRootSigKind() const LLVM_READONLY { return RSKind; }
+  const llvm::hlsl::ParsedRootSignature &getRootSignature() const {
+    return RootSig;
+  }
+  llvm::hlsl::ParsedRootSignature &getRootSignature() { return RootSig; }
+
+  static HLSLRootSignatureDecl *
+  Create(ASTContext &C, DeclContext *LexicalParent, SourceLocation KwLoc,
+         IdentifierInfo *ID, SourceLocation IDLoc,
+         const llvm::hlsl::ParsedRootSignature &RS, RootSigKind Kind);
+  static HLSLRootSignatureDecl *CreateDeserialized(ASTContext &C, unsigned ID);
+  // Implement isa/cast/dyncast/etc.
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(Kind K) { return K == HLSLRootSignature; }
 
   friend class ASTDeclReader;
   friend class ASTDeclWriter;

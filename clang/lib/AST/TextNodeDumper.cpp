@@ -2712,6 +2712,15 @@ void TextNodeDumper::VisitHLSLBufferDecl(const HLSLBufferDecl *D) {
   dumpName(D);
 }
 
+void TextNodeDumper::VisitHLSLRootSignatureDecl(const HLSLRootSignatureDecl *D) {
+  if (D->getRootSigKind() !=
+      HLSLRootSignatureDecl::RootSigKind::AttributeRootSignature) {
+    dumpName(D);
+    OS << "{ \"" << printRootSignature(D->getRootSignature()) << "\" }";
+  } else
+    OS << " " << printRootSignature(D->getRootSignature());
+}
+
 void TextNodeDumper::VisitOpenACCConstructStmt(const OpenACCConstructStmt *S) {
   OS << " " << S->getDirectiveKind();
 }

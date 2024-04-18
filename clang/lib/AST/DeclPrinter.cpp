@@ -111,6 +111,7 @@ namespace {
     void VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *TTP);
     void VisitNonTypeTemplateParmDecl(const NonTypeTemplateParmDecl *NTTP);
     void VisitHLSLBufferDecl(HLSLBufferDecl *D);
+    void VisitHLSLRootSignatureDecl(HLSLRootSignatureDecl *D);
 
     void printTemplateParameters(const TemplateParameterList *Params,
                                  bool OmitTemplateKW = false);
@@ -1758,6 +1759,16 @@ void DeclPrinter::VisitHLSLBufferDecl(HLSLBufferDecl *D) {
   Out << " {\n";
   VisitDeclContext(D);
   Indent() << "}";
+}
+
+void DeclPrinter::VisitHLSLRootSignatureDecl(HLSLRootSignatureDecl *D) {
+  if (D->getRootSigKind() ==
+      HLSLRootSignatureDecl::RootSigKind::AttributeRootSignature) {
+    Out << " " << printRootSignature(D->getRootSignature());
+  } else {
+    Out << *D;
+    Out << "{ \"" << printRootSignature(D->getRootSignature()) << "\" }";
+  }
 }
 
 void DeclPrinter::VisitOMPAllocateDecl(OMPAllocateDecl *D) {

@@ -37,6 +37,10 @@ public:
   HLSLNumThreadsAttr *mergeNumThreadsAttr(Decl *D,
                                           const AttributeCommonInfo &AL, int X,
                                           int Y, int Z);
+  HLSLEntryRootSignatureAttr *
+  mergeRootSignatureAttr(Decl *D, const AttributeCommonInfo &AL,
+                         llvm::StringRef RootSigStr,
+                         const HLSLRootSignatureDecl *OrigRS);
   HLSLShaderAttr *mergeShaderAttr(Decl *D, const AttributeCommonInfo &AL,
                                   HLSLShaderAttr::ShaderType ShaderType);
   HLSLParamModifierAttr *

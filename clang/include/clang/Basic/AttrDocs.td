@@ -7309,6 +7309,16 @@ The full documentation is available here: https://docs.microsoft.com/en-us/windo
   }];
 }
 
+def HLSLEntryRootSignatureDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The ``RootSignature`` attribute applies to HLSL entry function.
+It requires a root signature string as input.
+
+The full documentation is available here: https://learn.microsoft.com/en-us/windows/win32/direct3d12/specifying-root-signatures-in-hlsl#compiling-an-hlsl-root-signature
+  }];
+}
+
 def HLSLSV_ShaderTypeAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{

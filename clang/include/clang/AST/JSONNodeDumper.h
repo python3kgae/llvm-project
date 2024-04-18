@@ -218,6 +218,7 @@ public:
   void VisitSectionAttr(const SectionAttr *SA);
   void VisitVisibilityAttr(const VisibilityAttr *VA);
   void VisitTLSModelAttr(const TLSModelAttr *TA);
+  void VisitHLSLEntryRootSignatureAttr(const HLSLEntryRootSignatureAttr *RSA);
 
   void VisitTypedefType(const TypedefType *TT);
   void VisitUsingType(const UsingType *TT);
@@ -261,6 +262,7 @@ public:
   void VisitRecordDecl(const RecordDecl *RD);
   void VisitCXXRecordDecl(const CXXRecordDecl *RD);
   void VisitHLSLBufferDecl(const HLSLBufferDecl *D);
+  void VisitHLSLRootSignatureDecl(const HLSLRootSignatureDecl *D);
   void VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *D);
   void VisitNonTypeTemplateParmDecl(const NonTypeTemplateParmDecl *D);
   void VisitTemplateTemplateParmDecl(const TemplateTemplateParmDecl *D);

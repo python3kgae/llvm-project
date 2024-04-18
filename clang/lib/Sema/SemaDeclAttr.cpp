@@ -7245,6 +7245,48 @@ static void handleHLSLNumThreadsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     D->addAttr(NewAttr);
 }
 
+static bool parseRootSignature(
+    llvm::hlsl::ParsedRootSignature &RSData,
+    const clang::StringLiteral *RSLiteral,
+    llvm::hlsl::RootSignature::RootSignatureVersion DefaultVersion,
+    llvm::hlsl::RootSignature::RootSignatureCompilationFlags Flags,
+    clang::DiagnosticsEngine &Diags) {
+  // TODO: Parse the root signature string and move this function to correct
+  // place.
+  return true;
+}
+
+static void handleHLSLRootSignatureAttr(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
+  StringRef OrigStrRef;
+  SourceLocation LiteralLoc;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, OrigStrRef, &LiteralLoc))
+    return;
+
+  Expr *ArgExpr = AL.getArgAsExpr(0);
+  const auto *Literal = dyn_cast<StringLiteral>(ArgExpr->IgnoreParenCasts());
+
+  // TODO: set the correct version based on the target.
+  auto RSVersion = llvm::hlsl::RootSignature::RootSignatureVersion::Version_1_1;
+
+  llvm::hlsl::ParsedRootSignature RSData;
+  if (!parseRootSignature(
+          RSData, Literal, RSVersion,
+          llvm::hlsl::RootSignature::RootSignatureCompilationFlags::None,
+          S.getDiagnostics()))
+    return;
+
+  DeclContext *DC = D->getDeclContext();
+  HLSLRootSignatureDecl *RSDecl = HLSLRootSignatureDecl::Create(
+      S.getASTContext(), DC, AL.getLoc(), nullptr, SourceLocation(), RSData,
+      HLSLRootSignatureDecl::RootSigKind::AttributeRootSignature);
+
+  HLSLEntryRootSignatureAttr *RSA =
+      S.HLSL().mergeRootSignatureAttr(D, AL, OrigStrRef, RSDecl);
+  if (RSA)
+    D->addAttr(RSA);
+}
+
 static bool isLegalTypeForHLSLSV_DispatchThreadID(QualType T) {
   if (!T->hasUnsignedIntegerRepresentation())
     return false;
@@ -9684,6 +9726,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   // HLSL attributes:
   case ParsedAttr::AT_HLSLNumThreads:
     handleHLSLNumThreadsAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_HLSLEntryRootSignature:
+    handleHLSLRootSignatureAttr(S, D, AL);
     break;
   case ParsedAttr::AT_HLSLSV_GroupIndex:
     handleSimpleAttribute<HLSLSV_GroupIndexAttr>(S, D, AL);

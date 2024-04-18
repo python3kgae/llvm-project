@@ -5626,6 +5626,28 @@ HLSLBufferDecl *HLSLBufferDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
                                     SourceLocation(), SourceLocation());
 }
 
+HLSLRootSignatureDecl::HLSLRootSignatureDecl(
+    DeclContext *DC, SourceLocation KwLoc, IdentifierInfo *ID,
+    SourceLocation IDLoc, const llvm::hlsl::ParsedRootSignature &RS,
+    RootSigKind Kind)
+    : NamedDecl(Decl::Kind::HLSLRootSignature, DC, IDLoc, DeclarationName(ID)),
+      KwLoc(KwLoc), RSKind(Kind), RootSig(RS) {}
+
+HLSLRootSignatureDecl *HLSLRootSignatureDecl::Create(
+    ASTContext &C, DeclContext *DC, SourceLocation KwLoc, IdentifierInfo *ID,
+    SourceLocation IDLoc, const llvm::hlsl::ParsedRootSignature &RS,
+    RootSigKind Kind) {
+  return new (C, DC) HLSLRootSignatureDecl(DC, KwLoc, ID, IDLoc, RS, Kind);
+}
+
+HLSLRootSignatureDecl *HLSLRootSignatureDecl::CreateDeserialized(ASTContext &C,
+                                                                 unsigned ID) {
+  llvm::hlsl::ParsedRootSignature RS;
+  return new (C, ID) HLSLRootSignatureDecl(nullptr, SourceLocation(), nullptr,
+                                           SourceLocation(), RS,
+                                           RootSigKind::AttributeRootSignature);
+}
+
 //===----------------------------------------------------------------------===//
 // ImportDecl Implementation
 //===----------------------------------------------------------------------===//

@@ -4357,6 +4357,14 @@ def HLSLNumThreads: InheritableAttr {
   let Documentation = [NumThreadsDocs];
 }
 
+def HLSLEntryRootSignature : InheritableAttr {
+  let Spellings = [Microsoft<"RootSignature">];
+  let Subjects = SubjectList<[HLSLEntry]>;
+  let LangOpts = [HLSL];
+  let Documentation = [HLSLEntryRootSignatureDocs];
+  let Args = [StringArgument<"InputString"> , DeclArgument<HLSLRootSignature, "RootSignatureObject", 0, /*fake*/ 1>];
+}
+
 def HLSLSV_GroupIndex: HLSLAnnotationAttr {
   let Spellings = [HLSLSemantic<"SV_GroupIndex">];
   let Subjects = SubjectList<[ParmVar, GlobalVar]>;

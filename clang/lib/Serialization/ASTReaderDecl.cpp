@@ -330,6 +330,7 @@ namespace clang {
     void VisitLabelDecl(LabelDecl *LD);
     void VisitNamespaceDecl(NamespaceDecl *D);
     void VisitHLSLBufferDecl(HLSLBufferDecl *D);
+    void VisitHLSLRootSignatureDecl(HLSLRootSignatureDecl *D);
     void VisitUsingDirectiveDecl(UsingDirectiveDecl *D);
     void VisitNamespaceAliasDecl(NamespaceAliasDecl *D);
     void VisitTypeDecl(TypeDecl *TD);
@@ -1866,6 +1867,17 @@ void ASTDeclReader::VisitHLSLBufferDecl(HLSLBufferDecl *D) {
   D->KwLoc = readSourceLocation();
   D->LBraceLoc = readSourceLocation();
   D->RBraceLoc = readSourceLocation();
+}
+
+void ASTDeclReader::VisitHLSLRootSignatureDecl(HLSLRootSignatureDecl *D) {
+  VisitNamedDecl(D);
+  D->KwLoc = readSourceLocation();
+  SmallVector<uint32_t, 64> Data;
+  unsigned Num = Record.readInt();
+  Data.reserve(Num);
+  for (unsigned I = 0; I != Num; ++I)
+    Data.push_back(Record.readInt());
+  llvm::hlsl::deserializeRootSignature(Data, D->getRootSignature());
 }
 
 void ASTDeclReader::VisitNamespaceAliasDecl(NamespaceAliasDecl *D) {
@@ -4110,6 +4122,9 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
   case DECL_IMPLICIT_CONCEPT_SPECIALIZATION:
     D = ImplicitConceptSpecializationDecl::CreateDeserialized(Context, ID,
                                                               Record.readInt());
+    break;
+  case DECL_HLSL_ROOT_SIGNATURE:
+    D = HLSLRootSignatureDecl::CreateDeserialized(Context, ID);
     break;
   }
 

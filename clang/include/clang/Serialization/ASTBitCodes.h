@@ -1530,7 +1530,10 @@ enum DeclCode {
   /// An ImplicitConceptSpecializationDecl record.
   DECL_IMPLICIT_CONCEPT_SPECIALIZATION,
 
-  DECL_LAST = DECL_IMPLICIT_CONCEPT_SPECIALIZATION
+  /// A HLSLRootSignatureDecl record.
+  DECL_HLSL_ROOT_SIGNATURE,
+
+  DECL_LAST = DECL_HLSL_ROOT_SIGNATURE
 };
 
 /// Record codes for each kind of statement or expression.

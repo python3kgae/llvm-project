@@ -140,6 +140,7 @@ namespace clang {
     void VisitDeclContext(DeclContext *DC);
     template <typename T> void VisitRedeclarable(Redeclarable<T> *D);
     void VisitHLSLBufferDecl(HLSLBufferDecl *D);
+    void VisitHLSLRootSignatureDecl(HLSLRootSignatureDecl *D);
 
     // FIXME: Put in the same order is DeclNodes.td?
     void VisitObjCMethodDecl(ObjCMethodDecl *D);
@@ -2075,6 +2076,17 @@ void ASTDeclWriter::VisitHLSLBufferDecl(HLSLBufferDecl *D) {
   Record.AddSourceLocation(D->getRBraceLoc());
 
   Code = serialization::DECL_HLSL_BUFFER;
+}
+
+void ASTDeclWriter::VisitHLSLRootSignatureDecl(HLSLRootSignatureDecl *D) {
+  VisitNamedDecl(D);
+  Record.AddSourceLocation(D->getKeywordLoc());
+  SmallVector<uint32_t, 64> Data =
+      serializeRootSignature(D->getRootSignature());
+  Record.writeUInt32(Data.size());
+  for (uint32_t Val : Data)
+    Record.push_back(Val);
+  Code = serialization::DECL_HLSL_ROOT_SIGNATURE;
 }
 
 void ASTDeclWriter::VisitOMPThreadPrivateDecl(OMPThreadPrivateDecl *D) {
