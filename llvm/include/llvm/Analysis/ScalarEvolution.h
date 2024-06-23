@@ -1384,9 +1384,11 @@ private:
   /// The tracker for \@llvm.assume intrinsics in this function.
   AssumptionCache &AC;
 
+protected:
   /// The dominator tree.
   DominatorTree &DT;
 
+private:
   /// The loop information for the function we are currently analyzing.
   LoopInfo &LI;
 
@@ -1796,8 +1798,10 @@ private:
                 const ExitLimit &EL);
   };
 
+protected:
   using ExitLimitCacheTy = ExitLimitCache;
 
+private:
   ExitLimit computeExitLimitFromCondCached(ExitLimitCacheTy &Cache,
                                            const Loop *L, Value *ExitCond,
                                            bool ExitIfTrue,
@@ -1838,6 +1842,7 @@ private:
                                                  BasicBlock *ExitingBB,
                                                  bool IsSubExpr);
 
+protected:
   /// Compute the exit limit of a loop that is controlled by a
   /// "(IV >> 1) != 0" type comparison.  We cannot compute the exact trip
   /// count in these cases (since SCEV has no way of expressing them), but we
@@ -1868,6 +1873,7 @@ private:
   /// CouldNotCompute.
   ExitLimit howFarToNonZero(const SCEV *V, const Loop *L);
 
+private:
   /// Return the number of times an exit condition containing the specified
   /// less-than comparison will execute.  If not computable, return
   /// CouldNotCompute.
@@ -1884,10 +1890,12 @@ private:
                              bool isSigned, bool ControlsOnlyExit,
                              bool AllowPredicates = false);
 
+protected:
   ExitLimit howManyGreaterThans(const SCEV *LHS, const SCEV *RHS, const Loop *L,
                                 bool isSigned, bool IsSubExpr,
                                 bool AllowPredicates = false);
 
+private:
   /// Return a predecessor of BB (which may not be an immediate predecessor)
   /// which has exactly one successor from which BB is reachable, or null if
   /// no such block is found.
@@ -2053,9 +2061,11 @@ private:
                           SmallPtrSetImpl<Instruction *> &Visited,
                           SmallVectorImpl<const SCEV *> &ToForget);
 
+public:
   /// Erase Value from ValueExprMap and ExprValueMap.
   void eraseValueFromMap(Value *V);
 
+private:
   /// Insert V to S mapping into ValueExprMap and ExprValueMap.
   void insertValueToMap(Value *V, const SCEV *S);
 
@@ -2150,6 +2160,7 @@ private:
   std::optional<std::pair<const SCEV *, SmallVector<const SCEVPredicate *, 3>>>
   createAddRecFromPHIWithCastsImpl(const SCEVUnknown *SymbolicPHI);
 
+protected:
   /// Compute the maximum backedge count based on the range of values
   /// permitted by Start, End, and Stride. This is for loops of the form
   /// {Start, +, Stride} LT End.
@@ -2168,6 +2179,7 @@ private:
   /// the stride.
   bool canIVOverflowOnLT(const SCEV *RHS, const SCEV *Stride, bool IsSigned);
 
+private:
   /// Verify if an linear IV with negative stride can overflow when in a
   /// greater-than comparison, knowing the invariant term of the comparison,
   /// the stride.
