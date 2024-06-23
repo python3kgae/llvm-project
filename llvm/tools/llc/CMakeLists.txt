@@ -21,6 +21,7 @@ set(LLVM_LINK_COMPONENTS
   TargetParser
   TransformUtils
   Vectorize
+  EnzymeStatic-19
   )
 
 add_llvm_tool(llc
