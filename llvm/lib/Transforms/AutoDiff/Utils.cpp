@@ -2277,7 +2277,8 @@ AllocaInst *getBaseAndOffset(Value *ptr, size_t &offset) {
     if (auto CI = dyn_cast<GetElementPtrInst>(ptr)) {
       auto &DL = CI->getParent()->getParent()->getParent()->getDataLayout();
       MapVector<Value *, APInt> VariableOffsets;
-      auto width = sizeof(size_t) * 8;
+      auto width = DL.getIndexSizeInBits(0);
+      //sizeof(size_t) * 8;
       APInt Offset(width, 0);
       bool success = collectOffset(cast<GEPOperator>(CI), DL, width,
                                    VariableOffsets, Offset);
@@ -2324,7 +2325,8 @@ findAllUsersOf(Value *AI) {
       if (auto CI = dyn_cast<GetElementPtrInst>(U)) {
         auto &DL = CI->getParent()->getParent()->getParent()->getDataLayout();
         MapVector<Value *, APInt> VariableOffsets;
-        auto width = sizeof(size_t) * 8;
+        auto width = DL.getIndexSizeInBits(0);
+        //sizeof(size_t) * 8;
         APInt Offset(width, 0);
         bool success = collectOffset(cast<GEPOperator>(CI), DL, width,
                                      VariableOffsets, Offset);

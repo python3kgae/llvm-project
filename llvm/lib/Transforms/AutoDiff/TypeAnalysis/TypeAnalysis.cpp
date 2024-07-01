@@ -1175,7 +1175,7 @@ void TypeAnalyzer::updateAnalysis(Value *Val, TypeTree Data, Value *Origin) {
 }
 
 /// Analyze type info given by the arguments, possibly adding to work queue
-void TypeAnalyzer:: () {
+void TypeAnalyzer::prepareArgs() {
   // Propagate input type information for arguments
   for (auto &pair : fntypeinfo.Arguments) {
     assert(pair.first->getParent() == fntypeinfo.Function);

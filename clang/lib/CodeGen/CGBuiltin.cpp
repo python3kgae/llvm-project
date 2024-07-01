@@ -5522,6 +5522,40 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     return RValue::get(EmitRuntimeCall(CGM.CreateRuntimeFunction(FTy, Name),
                                        {Arg0, Arg1, PacketSize, PacketAlign}));
   }
+
+  // AutoDiff
+  case Builtin::BI__builtin_hlsl_autodiff:
+  case Builtin::BI__builtin_hlsl_fwddiff: {
+    const char *Name;
+    if (BuiltinID == Builtin::BI__builtin_hlsl_fwddiff)
+      Name = "??$fwddiff@";
+    else
+      Name = "??$autodiff@";
+    // Emit all Args.
+    SmallVector<Value *> Args;
+    Args.push_back(EmitDeclRefLValue(dyn_cast<DeclRefExpr>(E->getArg(0)))
+                       .getAddress()
+                       .getBasePointer());
+    for (unsigned I = 1; I < E->getNumArgs(); ++I) {
+      const Expr *Arg = E->getArg(I);
+      LValue LV = EmitLValue(Arg);
+      Args.push_back(
+          LV.getAddress().getBasePointer());
+    }
+    // Convert retrun type.
+    llvm::Type *RetTy = ConvertType(E->getType());
+    // Building the generic function prototype.
+    SmallVector<llvm::Type *> ArgTys;
+    for (unsigned I = 0; I < E->getNumArgs(); ++I)
+      ArgTys.push_back(Args[I]->getType());
+    llvm::FunctionType *FTy =
+        llvm::FunctionType::get(RetTy,
+                                llvm::ArrayRef<llvm::Type *>(ArgTys), false);
+
+    return RValue::get(EmitRuntimeCall(CGM.CreateRuntimeFunction(FTy, Name),
+                                       Args));
+  }
+
   // OpenCL v2.0 s6.13.16, s9.17.3.5 - Built-in pipe commit read and write
   // functions
   case Builtin::BIcommit_read_pipe:

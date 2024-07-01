@@ -433,7 +433,7 @@ bool handle(const Twine &curIndent, const Twine &argPattern, raw_ostream &os,
         // outer. assert(!ext.size());
         os << ord;
       } else
-        assert("Requires name for arg");
+        assert(0 && "Requires name for arg");
 
       os << ")) {\n";
 

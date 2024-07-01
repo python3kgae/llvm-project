@@ -4689,6 +4689,18 @@ def HLSLDotProduct : LangBuiltin<"HLSL_LANG"> {
   let Prototype = "void(...)";
 }
 
+def HLSLForwardDiff : LangBuiltin<"HLSL_LANG"> {
+  let Spellings = ["__builtin_hlsl_fwddiff"];
+  let Attributes = [NoThrow, CustomTypeChecking, Const];
+  let Prototype = "void(...)";
+}
+
+def HLSLAutoDiff : LangBuiltin<"HLSL_LANG"> {
+  let Spellings = ["__builtin_hlsl_autodiff"];
+  let Attributes = [NoThrow, Const, CustomTypeChecking];
+  let Prototype = "void(...)";
+}
+
 def HLSLFrac : LangBuiltin<"HLSL_LANG"> {
   let Spellings = ["__builtin_hlsl_elementwise_frac"];
   let Attributes = [NoThrow, Const];

@@ -32,6 +32,8 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
+#include "../../Transforms/AutoDiff/Enzyme.h"
+#include "llvm/Transforms/Scalar.h"
 #include <optional>
 
 using namespace llvm;
@@ -78,6 +80,9 @@ public:
   FunctionPass *createTargetRegisterAllocator(bool) override { return nullptr; }
   void addCodeGenPrepare() override {
     addPass(createDXILIntrinsicExpansionLegacyPass());
+    addPass(createEnzymePass());
+    addPass(createSROAPass());
+    addPass(createInstSimplifyLegacyPass());
     addPass(createDXILOpLoweringLegacyPass());
     addPass(createDXILTranslateMetadataPass());
     addPass(createDXILPrepareModulePass());

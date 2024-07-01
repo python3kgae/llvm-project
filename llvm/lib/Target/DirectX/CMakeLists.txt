@@ -47,6 +47,7 @@ add_llvm_target(DirectXCodeGen
   Target
   TargetParser
   TransformUtils
+  EnzymeStatic-19
 
   ADD_TO_COMPONENT
   DirectX

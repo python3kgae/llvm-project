@@ -2241,6 +2241,10 @@ private:
   ExprResult BuiltinMatrixColumnMajorStore(CallExpr *TheCall,
                                            ExprResult CallResult);
 
+  // Autodiff builtin handling.
+  ExprResult BuiltinHLSLForwardDiff(CallExpr *TheCall, ExprResult CallResult);
+  ExprResult BuiltinHLSLAutoDiff(CallExpr *TheCall, ExprResult CallResult);
+
   bool CheckFormatArguments(const FormatAttr *Format,
                             ArrayRef<const Expr *> Args, bool IsCXXMember,
                             VariadicCallType CallType, SourceLocation Loc,

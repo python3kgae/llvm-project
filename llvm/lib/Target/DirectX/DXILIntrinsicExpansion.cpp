@@ -19,6 +19,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsDirectX.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
@@ -287,6 +288,17 @@ static bool expandIntrinsic(Function &F, CallInst *Orig) {
   return false;
 }
 
+static GlobalVariable *getOrInsertExtIntGlobalVariable(Module &M, StringRef Name) {
+  if (auto *GV = M.getGlobalVariable(Name))
+    return GV;
+
+  auto *GV = new GlobalVariable(
+      M, Type::getInt32Ty(M.getContext()), false, GlobalValue::ExternalLinkage,
+      ConstantInt::get(Type::getInt32Ty(M.getContext()), 0), Name);
+  GV->setDSOLocal(true);
+  return GV;
+}
+
 static bool expansionIntrinsics(Module &M) {
   for (auto &F : make_early_inc_range(M.functions())) {
     if (!isIntrinsicExpansion(F))
@@ -301,6 +313,166 @@ static bool expansionIntrinsics(Module &M) {
     if (F.user_empty() && IntrinsicExpanded)
       F.eraseFromParent();
   }
+
+  SmallVector<std::pair<Function *, bool>> DiffFns;
+
+  for (auto &F : make_early_inc_range(M.functions())) {
+    bool IsFwdDiff = F.getName().starts_with("??$fwddiff@");
+    bool IsAutoDiff = F.getName().starts_with("??$autodiff@");
+    if (!IsFwdDiff && !IsAutoDiff)
+      continue;
+
+    if (F.user_empty()) {
+      F.eraseFromParent();
+      continue;
+    }
+    DiffFns.emplace_back(std::make_pair(&F, IsAutoDiff));
+
+  }
+
+  for (auto &[F, IsAutoDiff] : DiffFns) {
+    SmallVector<CallInst *> Calls;
+    for (User *U : make_early_inc_range(F->users())) {
+
+      CallInst *CI = cast<CallInst>(U);
+      Function *Fn = dyn_cast<Function>(CI->getArgOperand(0));
+      assert(Fn);
+
+      // TODO: Flatten Fn if needed.
+
+      SmallVector<Value *, 4> NewArgs;
+      NewArgs.push_back(Fn);
+
+      SmallVector<Value *, 4> Args(CI->arg_begin() + 1, CI->arg_end());
+      IRBuilder<> B(CI);
+
+      SmallVector<Type *> OutTypes;
+      SmallVector<Value *> OutPtrs;
+
+      std::string EnzymeFnName =
+          IsAutoDiff ? "__enzyme_autodiff" : "__enzyme_fwddiff";
+
+      for (Value *Arg : Args) {
+        auto *AI = cast<AllocaInst>(Arg);
+        Type *Ty = AI->getAllocatedType();
+        StructType *ST = cast<StructType>(Ty);
+        Type *EltTy = ST->getElementType(0);
+        StringRef Name = ST->getName();
+
+        // Mangle the function name.
+        EnzymeFnName =
+            EnzymeFnName + "_" + Name.str();
+
+        GlobalVariable *EnzymeMode = nullptr;
+        // Create global variable for
+        //    extern int enzyme_dup;
+        //    extern int enzyme_dupnoneed;
+        //    extern int enzyme_out;
+        //    extern int enzyme_const;
+
+        // TODO: assert in/inout/out with DIFFE_TYPE.
+
+        if (Name.starts_with("struct.hlsl::Duplicated")) {
+          EnzymeMode = getOrInsertExtIntGlobalVariable(M, "enzyme_dup");
+          NewArgs.push_back(EnzymeMode);
+
+          Value *PtrP =
+              B.CreateGEP(ST, Arg, {B.getInt32(0), B.getInt32(0)});
+          Value *P = B.CreateLoad(EltTy, PtrP);
+          NewArgs.push_back(P);
+
+          Value *PtrD = B.CreateGEP(ST, Arg, {B.getInt32(0), B.getInt32(1)});
+          Value *D = B.CreateLoad(EltTy, PtrD);
+          NewArgs.push_back(D);
+        } else if (Name.starts_with("struct.hlsl::DuplicatedNoNeed")) {
+          EnzymeMode = getOrInsertExtIntGlobalVariable(M, "enzyme_dupnoneed");
+          NewArgs.push_back(EnzymeMode);
+
+          Value *PtrP = B.CreateGEP(ST, Arg, {B.getInt32(0), B.getInt32(0)});
+          Value *P = B.CreateLoad(EltTy, PtrP);
+          NewArgs.push_back(P);
+
+          Value *PtrD = B.CreateGEP(ST, Arg, {B.getInt32(0), B.getInt32(1)});
+          Value *D = B.CreateLoad(EltTy, PtrD);
+          NewArgs.push_back(D);
+        } else if (Name.starts_with("struct.hlsl::Active")) {
+          assert(IsAutoDiff && "Active mode is only for autodiff");
+          EnzymeMode = getOrInsertExtIntGlobalVariable(M, "enzyme_out");
+          NewArgs.push_back(EnzymeMode);
+
+          Value *PtrP = B.CreateGEP(ST, Arg, {B.getInt32(0), B.getInt32(0)});
+          Value *P = B.CreateLoad(EltTy, PtrP);
+          NewArgs.push_back(P);
+
+          // Save type for the output.
+          OutTypes.push_back(ST->getElementType(0));
+
+          // Save the pointer for the output.
+          Value *PtrD =
+              B.CreateGEP(ST, Arg, {B.getInt32(0), B.getInt32(1)});
+          OutPtrs.push_back(PtrD);
+
+        } else if (Name.starts_with("struct.hlsl::Const")) {
+          EnzymeMode = getOrInsertExtIntGlobalVariable(M, "enzyme_const");
+
+          NewArgs.push_back(EnzymeMode);
+          Value *PtrP = B.CreateGEP(ST, Arg, {B.getInt32(0), B.getInt32(0)});
+          Value *P = B.CreateLoad(EltTy, PtrP);
+          NewArgs.push_back(P);
+
+        } else {
+          llvm_unreachable("Unknown Enzyme mode");
+        }
+      }
+
+      SmallVector<Type *, 4> NewArgTys;
+      for (Value *Arg : NewArgs) {
+        NewArgTys.push_back(Arg->getType());
+      }
+
+      Type *RetTy = Fn->getReturnType();
+      if (IsAutoDiff) {
+        RetTy = StructType::get(M.getContext(), OutTypes);
+      }
+      // TODO: add retTy to EnzymeFnName.
+      FunctionType *FT = FunctionType::get(RetTy, NewArgTys, false);
+      
+      FunctionCallee EnzymeFn = M.getOrInsertFunction(EnzymeFnName, FT);
+
+      CallInst *NewCI = B.CreateCall(EnzymeFn, NewArgs);
+
+      // Replace CI with NewCI.
+      // Link NewCI result with Active.B;
+      for (unsigned I = 0; I < OutPtrs.size(); I++) {
+        Value *Ptr = OutPtrs[I];
+        Value *Val = B.CreateExtractValue(NewCI, I);
+        B.CreateStore(Val, Ptr);
+      }
+
+      if (!IsAutoDiff)
+        CI->replaceAllUsesWith(NewCI);
+
+      CI->eraseFromParent();
+      //Calls.push_back(CI);
+      // Lower fwddiff into __enzyme_fwddiff.
+      //       autodiff into __enzyme_fwddiff.
+      // translate argument and parameter.
+      // Duplicated into enzyme_dup,a.x, a.y.
+      // Const into enzyme_const, a.x.
+      // Active into enzyme_out, a.x.
+      // DuplicatedNoNeed, enzyme_dupnoneed, a.x, a.y.
+      // reference arg need to change to ref.
+      // non-reference arg just use value?
+    }
+
+    //for (CallInst *CI : Calls) {
+    //  CI->eraseFromParent();
+    //}
+
+
+    F->eraseFromParent();
+  }
+
   return true;
 }
 

@@ -3350,6 +3350,11 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
   case Builtin::BI__builtin_matrix_column_major_store:
     return BuiltinMatrixColumnMajorStore(TheCall, TheCallResult);
+  
+  case Builtin::BI__builtin_hlsl_fwddiff:
+    return BuiltinHLSLForwardDiff(TheCall, TheCallResult);
+  case Builtin::BI__builtin_hlsl_autodiff:
+    return BuiltinHLSLAutoDiff(TheCall, TheCallResult);
 
   case Builtin::BI__builtin_get_device_side_mangled_name: {
     auto Check = [](CallExpr *TheCall) {
@@ -15711,6 +15716,38 @@ ExprResult Sema::BuiltinMatrixColumnMajorStore(CallExpr *TheCall,
     return ExprError();
 
   return CallResult;
+}
+
+ExprResult Sema::BuiltinHLSLForwardDiff(CallExpr *TheCall,
+                                        ExprResult CallResult) {
+  if (checkArgCountAtLeast(TheCall, 1))
+    return ExprError();
+  // Make sure arg0 is a function.
+  Expr *Arg0 = TheCall->getArg(0);
+  DeclRefExpr *Ref = dyn_cast<DeclRefExpr>(Arg0);
+  if (!Ref)
+    return ExprError();
+  Decl *D = Ref->getDecl();
+  FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+  if (!FD)
+    return ExprError();
+  // Change return type to return type of arg0.
+  TheCall->setType(FD->getReturnType());
+  return TheCall;
+}
+ExprResult Sema::BuiltinHLSLAutoDiff(CallExpr *TheCall, ExprResult CallResult) {
+  if (checkArgCountAtLeast(TheCall, 1))
+    return ExprError();
+  // Make sure arg0 is a function.
+  Expr *Arg0 = TheCall->getArg(0);
+  DeclRefExpr *Ref = dyn_cast<DeclRefExpr>(Arg0);
+  if (!Ref)
+    return ExprError();
+  Decl *D = Ref->getDecl();
+  FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+  if (!FD)
+    return ExprError();
+  return TheCall;
 }
 
 /// \brief Enforce the bounds of a TCB
